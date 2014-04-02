@@ -37,6 +37,17 @@ AppPottsAniso::AppPottsAniso(SPPARKS *spk, int narg, char **arg) :
   mobility = &uniform_mobility;
 }
 
+/* ---------------------------------------------------------------------- */
+
+AppPottsAniso::~AppPottsAniso()
+{
+  delete [] sites;
+  delete [] unique;
+  delete [] e_table;
+  delete [] m_table;
+}
+
+
 /* ----------------------------------------------------------------------
    input script commands unique to this app
 ------------------------------------------------------------------------- */

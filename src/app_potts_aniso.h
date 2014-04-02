@@ -23,7 +23,7 @@ namespace SPPARKS_NS {
 class AppPottsAniso : public AppPotts {
  public:
   AppPottsAniso(class SPPARKS *, int, char **);
-  ~AppPottsAniso() {}
+  ~AppPottsAniso();
   void input_app(char *, int, char **);
   void init_app();
 
@@ -32,11 +32,11 @@ class AppPottsAniso : public AppPotts {
   double site_propensity(int);
   void site_event(int, class RandomPark *);
 
- private:
-  double pfraction;
-  int multi,nthresh;
-  double *e_table,*m_table;
 
+ protected:
+  double *e_table, *m_table;
+
+ private:
   double (*energy)(int,int);
   double (*mobility)(int,int);
   double uniform_energy(int,int);
