@@ -35,6 +35,7 @@ AppPottsAniso::AppPottsAniso(SPPARKS *spk, int narg, char **arg) :
   // default to isotropic potts model
   energy = &uniform_energy;
   mobility = &uniform_mobility;
+  e_table = m_table = NULL;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -54,17 +55,6 @@ AppPottsAniso::~AppPottsAniso()
 
 void AppPottsAniso::input_app(char *command, int narg, char **arg)
 {
-  if (strcmp(command,"pin") == 0) {
-    if (narg != 3) error->all(FLERR,"Illegal pin command");
-    pfraction = atof(arg[0]);
-    multi = atoi(arg[1]);
-    nthresh = atoi(arg[2]);
-    if (pfraction < 0.0 || pfraction > 1.0) 
-      error->all(FLERR,"Illegal pin command");
-    if (multi != 0 && multi != 1) error->all(FLERR,"Illegal pin command");
-    if (nthresh < 0) error->all(FLERR,"Illegal pin command");
-    pin_create();
-  }
   if (strcmp(command,"load_mobility") == 0) {
     if (narg != 1) error->all(FLERR,"Illegal load_mobility command");
     // extract the filename for mobility lookup table
