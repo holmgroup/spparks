@@ -1,22 +1,19 @@
-# mac_debug = Apple PowerBook G4 laptop, c++, no MPI, debug flags
+# mac = Apple PowerBook G4 laptop, c++, no MPI
 
-# This version uses the MallocDebug library, which
-# crashes when it encounters various memory errors. 
-# Running using gdb and typing where after it crashes,
-# you can see what line the problem occurred on.
+SHELL = /bin/sh
 
 # ---------------------------------------------------------------------
 # compiler/linker settings
 # specify flags and libraries needed for your compiler
 
-CC =		g++
-CCFLAGS =	-g -MMD
+CC =		mpicc
+CCFLAGS =	-g -MMD -DDEBUG
 SHFLAGS =	-fPIC
 DEPFLAGS =	-M
 
-LINK =		g++
-LINKFLAGS =	-g -L/usr/lib
-LIB =	  	-lMallocDebug
+LINK =		mpic++
+LINKFLAGS =	-g 
+LIB =	  	-lstdc++
 SIZE =		size
 
 ARCHIVE =	ar
@@ -29,16 +26,16 @@ SHLIBFLAGS =	-shared
 
 # SPPARKS ifdef options, see doc/Section_start.html
 
-SPK_INC =	-DSPPARKS_GZIP
+SPK_INC =	-DSPPARKS_GZIP # -DSPPARKS_JPEG
 
 # MPI library, can be src/STUBS dummy lib
 # INC = path for mpi.h, MPI compiler settings
 # PATH = path for MPI library
 # LIB = name of MPI library
 
-MPI_INC =       -I../STUBS
+MPI_INC =       # -I../STUBS
 MPI_PATH = 	
-MPI_LIB =	../STUBS/mpi.o
+MPI_LIB =	# ../STUBS/libmpi.a
 
 # JPEG library, only needed if -DLAMMPS_JPEG listed with LMP_INC
 # INC = path for jpeglib.h
@@ -47,7 +44,7 @@ MPI_LIB =	../STUBS/mpi.o
 
 JPG_INC =       
 JPG_PATH = 	
-JPG_LIB =	/usr/local/lib/libjpeg.a
+JPG_LIB =	# /usr/local/lib/libjpeg.a
 
 # ---------------------------------------------------------------------
 # build rules and dependencies
