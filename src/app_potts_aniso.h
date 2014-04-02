@@ -30,12 +30,13 @@ class AppPottsAniso : public AppPotts {
   void site_event_rejection(int, class RandomPark *);
   double site_propensity(int);
   void site_event(int, class RandomPark *);
-  void push_new_site(int, int*, int, std::stack<int>*);
+  // push_new_site -- may be helpful for fancy clustering.
+  // void push_new_site(int, int*, int, std::stack<int>*);
 
  private:
   double pfraction;
   int multi,nthresh;
-  double* e_table,m_table;
+  double *e_table,*m_table;
 
   double (*energy)(int,int);
   double (*mobility)(int,int);

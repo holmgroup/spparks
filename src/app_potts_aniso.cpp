@@ -234,19 +234,32 @@ void AppPottsAniso::site_event(int i, RandomPark *random)
 }
 
 
-/* ----------------------------------------------------------------------
-   push new site onto stack and assign new id
-   -- keeping this around because it may be helpful
-      for writing a network structure burn algorithm. Just a reminder.
- ------------------------------------------------------------------------- */
+double iso_energy(int ispin, int jspin) {
+  return 1.0;
+}
 
-void AppPottsAniso::push_new_site(int i, int* cluster_ids, int id,
-					  std::stack<int>* cluststack)
-{
-  int isite = spin[i];
+double iso_mobility(int ispin, int jspin) {
+  return 1.0;
+}
 
-  if (isite != nspins+1) {
-    cluststack->push(i);
-    cluster_ids[i] = id;
-  }
+double lookup_energy(int ispin, int jspin) {
+  return e_table[0];
+}
+
+void lookup_mobility(int ispin, int jspin) {
+  return m_table[0];
+}
+
+void load_e_table(char* filename) {
+  // allocate memory for e_table
+  // e_table = malloc;
+  // load e_table from file into memory
+  return;
+}
+
+void load_m_table(char* filename) {
+  // allocate memory for m_table
+  // m_table = malloc;
+  // load m_table from file into memory
+  return;
 }
