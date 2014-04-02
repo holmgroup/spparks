@@ -27,7 +27,7 @@ using namespace SPPARKS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-AppPottsPin::AppPottsPin(SPPARKS *spk, int narg, char **arg) : 
+AppPottsAniso::AppPottsAniso(SPPARKS *spk, int narg, char **arg) : 
   AppPotts(spk,narg,arg)
 {
   if (narg != 2) error->all(FLERR,"Illegal app_style command");
@@ -37,7 +37,7 @@ AppPottsPin::AppPottsPin(SPPARKS *spk, int narg, char **arg) :
    input script commands unique to this app
 ------------------------------------------------------------------------- */
 
-void AppPottsPin::input_app(char *command, int narg, char **arg)
+void AppPottsAniso::input_app(char *command, int narg, char **arg)
 {
   if (strcmp(command,"pin") == 0) {
     if (narg != 3) error->all(FLERR,"Illegal pin command");
@@ -57,7 +57,7 @@ void AppPottsPin::input_app(char *command, int narg, char **arg)
    check validity of site values
 ------------------------------------------------------------------------- */
 
-void AppPottsPin::init_app()
+void AppPottsAniso::init_app()
 {
   delete [] sites;
   delete [] unique;
@@ -76,15 +76,12 @@ void AppPottsPin::init_app()
 /* ----------------------------------------------------------------------
    rKMC method
    perform a site event with null bin rejection
-   flip to random spin from 1 to nspins, but not to a pinned site
+   flip to random spin from 1 to nspins
 ------------------------------------------------------------------------- */
 
-void AppPottsPin::site_event_rejection(int i, RandomPark *random)
+void AppPottsAniso::site_event_rejection(int i, RandomPark *random)
 {
-  // no events for a pinned site
-
-  if (spin[i] > nspins) return;
-
+ 
   int oldstate = spin[i];
   double einitial = site_energy(i);
 
@@ -124,14 +121,9 @@ void AppPottsPin::site_event_rejection(int i, RandomPark *random)
    compute total propensity of owned site summed over possible events
 ------------------------------------------------------------------------- */
 
-double AppPottsPin::site_propensity(int i)
+double AppPottsAniso::site_propensity(int i)
 {
-  // no events for a pinned site
-
-  if (spin[i] > nspins) return 0.0;
-
   // events = spin flips to neighboring site different than self
-  // disallow flip to pinned site
   // disallow wild flips = flips to value different than all neighs
 
   int j,m,value;
@@ -172,12 +164,11 @@ double AppPottsPin::site_propensity(int i)
    choose and perform an event for site
 ------------------------------------------------------------------------- */
 
-void AppPottsPin::site_event(int i, RandomPark *random)
+void AppPottsAniso::site_event(int i, RandomPark *random)
 {
   int j,m,value;
 
   // pick one event from total propensity by accumulating its probability
-  // disallow flip to pinned site
   // compare prob to threshhold, break when reach it to select event
   // perform event
 
@@ -223,125 +214,14 @@ void AppPottsPin::site_event(int i, RandomPark *random)
   solve->update(nsites,sites,propensity);
 }
 
-/* ----------------------------------------------------------------------
-   change some sites to pinned sites
-   user params = pfraction, multi, nthresh
-------------------------------------------------------------------------- */
-
-void AppPottsPin::pin_create()
-{
-  int i,j,m,nattempt,nme,npin,ndiff;
-  int flag,flags[2],flagall[2];
-  tagint iglobal;
-
-  int ndesired = static_cast<int> (pfraction*nglobal);
-
-  RandomPark *random = new RandomPark(ranmaster->uniform());
-
-  // single site inclusions
-  // only put local sites into hash
-  // nthresh = 0 for insertion anywhere
-  // nthresh > 0 for insertion at grain boundaries
-
-  if (!multi) {
-    std::map<tagint,int> hash;
-    for (i = 0; i < nlocal; i++)
-      hash.insert(std::pair<tagint,int> (id[i],i));
-    std::map<tagint,int>::iterator loc;
-
-    npin = 0;
-    while (npin < ndesired) {
-      nattempt = ndesired - npin;
-      for (i = 0; i < nattempt; i++) {
-	iglobal = random->tagrandom(nglobal);
-	loc = hash.find(iglobal);
-	if (loc != hash.end()) {
-	  if (nthresh == 0) spin[loc->second] = nspins+1;
-	  else {
-	    m = loc->second;
-	    ndiff = 0;
-	    for (j = 0; j < numneigh[m]; j++)
-	      if (spin[m] != spin[neighbor[m][j]]) ndiff++;
-	    if (ndiff >= nthresh) spin[m] = nspins+1;
-	  }
-	}
-      }
-      
-      nme = 0;
-      for (i = 0; i < nlocal; i++)
-	if (spin[i] > nspins) nme++;
-      MPI_Allreduce(&nme,&npin,1,MPI_INT,MPI_SUM,world);
-    }
-
-  // multi site inclusions
-  // put local and ghost sites into hash
-  // nthresh = 0 for insertion anywhere
-  // nthresh > 0 for insertion at grain boundaries
-
-  } else if (multi) {
-    std::map<tagint,int> hash;
-    for (i = 0; i < nlocal+nghost; i++)
-      hash.insert(std::pair<tagint,int> (id[i],i));
-    std::map<tagint,int>::iterator loc;
-
-    tagint *list = new tagint[maxneigh+1];
-
-    npin = 0;
-    while (npin < ndesired) {
-      iglobal = random->tagrandom(nglobal);
-      loc = hash.find(iglobal);
-      if (loc != hash.end() && loc->second < nlocal) {
-	flag = 1;
-	i = loc->second;
-	if (spin[i] > nspins) flag = 0;
-	for (j = 0; j < numneigh[i]; j++)
-	  if (spin[neighbor[i][j]] > nspins) flag = 0;
-	if (nthresh) {
-	  ndiff = 0;
-	  for (j = 0; j < numneigh[i]; j++)
-	    if (spin[i] != spin[neighbor[i][j]]) ndiff++;
-	  if (ndiff < nthresh) flag = 0;
-	}
-
-	if (flag) {
-	  flags[0] = me+1;
-	  flags[1] = numneigh[i] + 1;
-	  spin[i] = nspins+1;
-	  for (j = 0; j < numneigh[i]; j++) {
-	    spin[neighbor[i][j]] = nspins+1;
-	    list[j] = id[neighbor[i][j]];
-	  }
-	  list[j++] = id[i];
-	} else flags[0] = flags[1] = 0;
-      } else flags[0] = flags[1] = 0;
-      
-      MPI_Allreduce(&flags,&flagall,2,MPI_INT,MPI_SUM,world);
-
-      if (flagall[0]) {
-	MPI_Bcast(list,flagall[1],MPI_INT,flagall[0]-1,world);
-	for (i = 0; i < flagall[1]; i++) {
-	  loc = hash.find(list[i]);
-	  if (loc != hash.end()) spin[loc->second] = nspins+1;
-	}
-
-	nme = 0;
-	for (i = 0; i < nlocal; i++)
-	  if (spin[i] > nspins) nme++;
-	MPI_Allreduce(&nme,&npin,1,MPI_INT,MPI_SUM,world);
-      }
-    }
-
-    delete [] list;
-  }
-
-  delete random;
-}
 
 /* ----------------------------------------------------------------------
    push new site onto stack and assign new id
+   -- keeping this around because it may be helpful
+      for writing a network structure burn algorithm. Just a reminder.
  ------------------------------------------------------------------------- */
 
-void AppPottsPin::push_new_site(int i, int* cluster_ids, int id,
+void AppPottsAniso::push_new_site(int i, int* cluster_ids, int id,
 					  std::stack<int>* cluststack)
 {
   int isite = spin[i];
