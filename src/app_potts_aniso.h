@@ -27,11 +27,10 @@ class AppPottsAniso : public AppPotts {
   void input_app(char *, int, char **);
   void init_app();
 
+  double site_energy(int);
   void site_event_rejection(int, class RandomPark *);
   double site_propensity(int);
   void site_event(int, class RandomPark *);
-  // push_new_site -- may be helpful for fancy clustering.
-  // void push_new_site(int, int*, int, std::stack<int>*);
 
  private:
   double pfraction;

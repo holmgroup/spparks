@@ -91,6 +91,23 @@ void AppPottsAniso::init_app()
   if (flagall) error->all(FLERR,"One or more sites have invalid values");
 }
 
+/* ----------------------------------------------------------------------
+   compute energy of site using the pairwise energy function
+   pointed to by (*energy)
+------------------------------------------------------------------------- */
+
+double AppPottsAniso::site_energy(int i)
+{
+  int ispin = spin[i];
+  int jspin = 0;
+  double eng = 0;
+  for (int j = 0; j < numneigh[i]; j++)
+    jspin = spin[neighbor[i][j]];
+    if (ispin != jspin) {
+      eng += energy(ispin, jspin);
+    }
+  return eng;
+}
 
 /* ----------------------------------------------------------------------
    rKMC method
@@ -234,30 +251,30 @@ void AppPottsAniso::site_event(int i, RandomPark *random)
 }
 
 
-double iso_energy(int ispin, int jspin) {
+double AppPottsAniso::iso_energy(int ispin, int jspin) {
   return 1.0;
 }
 
-double iso_mobility(int ispin, int jspin) {
+double AppPottsAniso::iso_mobility(int ispin, int jspin) {
   return 1.0;
 }
 
-double lookup_energy(int ispin, int jspin) {
+double AppPottsAniso::lookup_energy(int ispin, int jspin) {
   return e_table[0];
 }
 
-void lookup_mobility(int ispin, int jspin) {
+void AppPottsAniso::lookup_mobility(int ispin, int jspin) {
   return m_table[0];
 }
 
-void load_e_table(char* filename) {
+void AppPottsAniso::load_e_table(char* filename) {
   // allocate memory for e_table
   // e_table = malloc;
   // load e_table from file into memory
   return;
 }
 
-void load_m_table(char* filename) {
+void AppPottsAniso::load_m_table(char* filename) {
   // allocate memory for m_table
   // m_table = malloc;
   // load m_table from file into memory
