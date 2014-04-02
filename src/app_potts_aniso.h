@@ -37,10 +37,15 @@ class AppPottsAniso : public AppPotts {
   int multi,nthresh;
   double* e_table,m_table;
 
-  double (*e_lookup)(int, int);
-  double (*m_lookup)(int, int);
-  void load_energy_lookup(char* filename);
-  void load_mobility_lookup(char* filename);
+  double (*energy)(int,int);
+  double (*mobility)(int,int);
+  double iso_energy(int,int);
+  double iso_mobility(int,int);
+  double lookup_energy(int,int);
+  double lookup_mobility(int,int);
+
+  void load_e_table(char* filename);
+  void load_m_table(char* filename);
 };
 
 }

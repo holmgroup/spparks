@@ -49,7 +49,26 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
     if (multi != 0 && multi != 1) error->all(FLERR,"Illegal pin command");
     if (nthresh < 0) error->all(FLERR,"Illegal pin command");
     pin_create();
-  } else error->all(FLERR,"Unrecognized command");
+  }
+  if (strcmp(command,"load_mobility") == 0) {
+    if (narg != 1) error->all(FLERR,"Illegal load_mobility command");
+    // extract the filename for mobility lookup table
+    char *m_filename = arg[0];
+    // set fn pointer (*mobility) to the lookup function
+    mobility = &lookup_mobility;
+    // load the mobility lookup table *m_table
+    load_m_table(m_filename);
+  }
+  if (strcmp(command, "load_energy") == 0) {
+    if (narg != 1) error->all(FLERR,"Illegal load_energy command");
+    // extract the filename for energy lookup table
+    char *e_filename = arg[0];
+    // set fn pointer (*energy) to the lookup function
+    energy = &lookup_energy;
+    // load the energy lookup table *e_table
+    load_e_table(e_filename);
+  }
+  else error->all(FLERR,"Unrecognized command");
 }
 
 /* ----------------------------------------------------------------------
