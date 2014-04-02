@@ -31,6 +31,10 @@ AppPottsAniso::AppPottsAniso(SPPARKS *spk, int narg, char **arg) :
   AppPotts(spk,narg,arg)
 {
   if (narg != 2) error->all(FLERR,"Illegal app_style command");
+
+  // default to isotropic potts model
+  energy = &uniform_energy;
+  mobility = &uniform_mobility;
 }
 
 /* ----------------------------------------------------------------------
@@ -251,11 +255,11 @@ void AppPottsAniso::site_event(int i, RandomPark *random)
 }
 
 
-double AppPottsAniso::iso_energy(int ispin, int jspin) {
+double AppPottsAniso::uniform_energy(int ispin, int jspin) {
   return 1.0;
 }
 
-double AppPottsAniso::iso_mobility(int ispin, int jspin) {
+double AppPottsAniso::uniform_mobility(int ispin, int jspin) {
   return 1.0;
 }
 

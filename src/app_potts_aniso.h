@@ -39,8 +39,8 @@ class AppPottsAniso : public AppPotts {
 
   double (*energy)(int,int);
   double (*mobility)(int,int);
-  double iso_energy(int,int);
-  double iso_mobility(int,int);
+  double uniform_energy(int,int);
+  double uniform_mobility(int,int);
   double lookup_energy(int,int);
   double lookup_mobility(int,int);
 
