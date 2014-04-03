@@ -37,8 +37,8 @@ class AppPottsAniso : public AppPotts {
   double *e_table, *m_table;
 
  private:
-  double (*energy)(int,int);
-  double (*mobility)(int,int);
+  double (AppPottsAniso::*energy)(int,int);
+  double (AppPottsAniso::*mobility)(int,int);
   double uniform_energy(int,int);
   double uniform_mobility(int,int);
   double lookup_energy(int,int);
