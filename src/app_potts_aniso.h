@@ -44,8 +44,7 @@ class AppPottsAniso : public AppPotts {
   double lookup_energy(int,int);
   double lookup_mobility(int,int);
 
-  void load_e_table(char* filename);
-  void load_m_table(char* filename);
+  void load_table(char* filename, double* table);
 };
 
 }

@@ -22,6 +22,7 @@
 #include "error.h"
 
 #include <map>
+#include <algorithm>
 
 using namespace SPPARKS_NS;
 
@@ -62,7 +63,7 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
     // set fn pointer (*mobility) to the lookup function
     mobility = &lookup_mobility;
     // load the mobility lookup table *m_table
-    load_m_table(m_filename);
+    load_table(m_filename, m_table);
   }
   if (strcmp(command, "load_energy") == 0) {
     if (narg != 1) error->all(FLERR,"Illegal load_energy command");
@@ -71,7 +72,7 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
     // set fn pointer (*energy) to the lookup function
     energy = &lookup_energy;
     // load the energy lookup table *e_table
-    load_e_table(e_filename);
+    load_table(e_filename, e_table);
   }
   else error->all(FLERR,"Unrecognized command");
 }
@@ -139,7 +140,7 @@ void AppPottsAniso::site_event_rejection(int i, RandomPark *random)
   if (efinal <= einitial) {
   } else if (temperature == 0.0) {
     spin[i] = oldstate;
-  } else if (random->uniform() > exp((einitial-efinal)*t_inverse)) {
+  } else if (random->uniform() > mobility(spin[i], oldstate) * exp((einitial-efinal)*t_inverse)) {
     spin[i] = oldstate;
   }
 
@@ -193,7 +194,7 @@ double AppPottsAniso::site_propensity(int i)
     spin[i] = unique[m];
     efinal = site_energy(i);
     if (efinal <= einitial) prob += 1.0;
-    else if (temperature > 0.0) prob += exp((einitial-efinal)*t_inverse);
+    else if (temperature > 0.0) prob += mobility(spin[i], oldstate) * exp((einitial-efinal)*t_inverse);
   }
 
   spin[i] = oldstate;
@@ -232,7 +233,7 @@ void AppPottsAniso::site_event(int i, RandomPark *random)
     spin[i] = value;
     efinal = site_energy(i);
     if (efinal <= einitial) prob += 1.0;
-    else if (temperature > 0.0) prob += exp((einitial-efinal)*t_inverse);
+    else if (temperature > 0.0) prob += mobility(spin[i], oldstate) * exp((einitial-efinal)*t_inverse);
     if (prob >= threshhold) break;
   }
 
@@ -265,23 +266,43 @@ double AppPottsAniso::uniform_mobility(int ispin, int jspin) {
 }
 
 double AppPottsAniso::lookup_energy(int ispin, int jspin) {
-  return e_table[0];
+  int r,c;
+  c = std::min(ispin, jspin);
+  r = std::max(ispin, jspin);
+  int address = ((r * (r+1)) / 2) + c;
+  return e_table[address];
 }
 
 void AppPottsAniso::lookup_mobility(int ispin, int jspin) {
-  return m_table[0];
+  int r,c;
+  c = std::min(ispin, jspin);
+  r = std::max(ispin, jspin);
+  int address = ((r * (r+1)) / 2) + c;
+  return m_table[address];
 }
 
-void AppPottsAniso::load_e_table(char* filename) {
-  // allocate memory for e_table
-  // e_table = malloc;
-  // load e_table from file into memory
+void AppPottsAniso::load_table(char *filename, double *table) {
+  // allocate sparse triangular lookup table
+  // including the diagonal elements
+  int table_size = (nspins * (nspins-1)) / 2;
+  delete [] table;
+  table = new int[table_size];
+
+  // load table from file into memory
+  FILE *fileptr;
+  if (!(fileptr = fopen(filename, "r")))
+    error->all(FLERR,"Could not open lookup table file");
+  
+  double val = 0;
+  for (int r = 0; r < nspins; r++) {
+    for (int c = 0; c <= r; c++) {
+      int address = ((r * (r+1)) / 2) + c;
+      fscanf(fileptr, "%f", &val); 
+      table[address] = val;
+    }
+  }
+  fclose(fileptr);
+
   return;
 }
 
-void AppPottsAniso::load_m_table(char* filename) {
-  // allocate memory for m_table
-  // m_table = malloc;
-  // load m_table from file into memory
-  return;
-}
