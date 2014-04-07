@@ -1,0 +1,24 @@
+# SPPARKS Potts tests on generic lattice
+
+seed		 56789
+
+app_style	 potts 10000
+
+dimension	 2
+lattice		 sq/8n 1.0
+region		 box block 0 100 0 100 -0.5 0.5
+create_box	 box
+create_sites	 box
+read_sites	 input.potts
+
+solve_style      tree
+sector		 yes
+
+diag_style       energy
+
+temperature	 0.5
+
+stats            10.0
+dump             1 text 100.0 dump*.potts
+
+run              100.0

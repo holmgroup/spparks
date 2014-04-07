@@ -284,7 +284,10 @@ double AppPottsAniso::lookup_mobility(int ispin, int jspin) {
 void AppPottsAniso::load_table(char *filename, double *table) {
   // allocate sparse triangular lookup table
   // including the diagonal elements
-  int table_size = (nspins * (nspins-1)) / 2;
+  // lookup table should contain entries for spin == 0
+  // this way special energies can be assigned to particle interfaces
+  // and it's easier to think about zero-based arrays
+  int table_size = (nspins+1 * (nspins)) / 2;
   delete [] table;
   table = new double[table_size];
 
@@ -294,7 +297,7 @@ void AppPottsAniso::load_table(char *filename, double *table) {
     error->all(FLERR,"Could not open lookup table file");
   
   double val = 0;
-  for (int r = 0; r < nspins; r++) {
+  for (int r = 0; r <= nspins; r++) {
     for (int c = 0; c <= r; c++) {
       int address = ((r * (r+1)) / 2) + c;
       fscanf(fileptr, "%f", &val); 
