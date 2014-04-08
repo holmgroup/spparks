@@ -18,7 +18,7 @@ def print_header(outfile, dim=3, N=1, x=[-.5,.5], y=[-.5,.5], z=[-.5,.5]):
 
 def print_Sites(outfile, spins, spin_map):
   outfile.write('Values\n')
-  outfile.write('# segfault-preventing comment\n')
+  outfile.write('# this line left intentionally blank\n')
   for i, s in enumerate(spins):
     outfile.write('{0} {1}\n'.format(i+1, spin_map[s]))
 
