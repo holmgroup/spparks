@@ -22,6 +22,17 @@ def print_Sites(outfile, spins, spin_map):
   for i, s in enumerate(spins):
     outfile.write('{0} {1}\n'.format(i+1, spin_map[s]))
 
+def get_dimensionality(x_dim, y_dim, z_dim):
+  D = 0
+  x_range = x_dim[1] - x_dim[0]
+  y_range = y_dim[1] - y_dim[0]
+  z_range = z_dim[1] - z_dim[0]
+  for r in [x_range, y_range, z_range]:
+    if r > 1.0:
+      D += 1
+
+  return D
+
 def get_dim(dim_line):
   min_val, max_val = dim_line.split()
   return [float(min_val), float(max_val)]
@@ -35,7 +46,6 @@ def parse_potts(potts_file):
     for line in pf:
       if 'NUMBER OF ATOMS' in line:
         nsites = int(next(pf))
-
       if 'BOX' in line:
         x_dim = get_dim(next(pf))
         y_dim = get_dim(next(pf))
@@ -43,16 +53,16 @@ def parse_potts(potts_file):
         # skip forward two lines:
         next(pf); line = next(pf)
         spin = np.zeros(nsites, dtype='int')
+        pos = np.zeros((nsites, 3), dtype='int')
         extract = True
-
       if extract:
         # 0  1    2 3 4
         # id spin x y z
         # site_id i is offset by 1, hence spin.size == nsites+1
         i, s, x, y, z = map(int,line.split())
         spin[i-1] = s
-
-  return nsites, x_dim, y_dim, z_dim, spin
+        pos[i-1] = (x, y, z)
+  return nsites, x_dim, y_dim, z_dim, spin, pos
 
 def create_spin_map(spins):
   spin_set = set()
@@ -71,28 +81,33 @@ def create_spin_map(spins):
       new_spin = random.sample(uniques, 1)[0]
       uniques.remove(new_spin)
       spin_map[s] = new_spin
-
   return spin_map
 
-def get_dimensionality(x_dim, y_dim, z_dim):
-  D = 0
-  x_range = x_dim[1] - x_dim[0]
-  y_range = y_dim[1] - y_dim[0]
-  z_range = z_dim[1] - z_dim[0]
-  for r in [x_range, y_range, z_range]:
-    if r > 1.0:
-      D += 1
+def random_two_tone(spin_map):
+  """ randomly assign spins to be either type a or type b """
+  ori = {}
+  for s in spin_map:
+    ori[s] = random.choose(['a', 'b'])
+  return ori
 
-  return D
-
+def random_orientations(spin_map):
+  """ Assign spins a tuple of random Euler angles (Bunge style, in radians) """
+  ori = {}
+  for s in spin_map:
+    ori[s] = {'phi1': 2 * np.pi * random.random(),
+              'Phi' : np.pi * random.random(),
+              'phi2': 2 * np.pi * random.random()}
+  return ori
 
 if __name__ == '__main__':
   infile = 'init1.potts'
   outfile = 'input.potts'
-  nsites, x_dim, y_dim, z_dim, spins = parse_potts(infile)
+  nsites, x_dim, y_dim, z_dim, spins, pos = parse_potts(infile)
   dimensionality = get_dimensionality(x_dim, y_dim, z_dim)
                   
   spin_map = create_spin_map(spins)
+
+  ori = random_two_tone(spin_map)
 
   with open(outfile, 'w') as of:
     print_header(of, dimensionality, nsites, x_dim, y_dim, z_dim)
