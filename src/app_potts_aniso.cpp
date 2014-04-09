@@ -23,6 +23,7 @@
 
 #include <map>
 #include <algorithm>
+#include <fstream>
 
 using namespace SPPARKS_NS;
 
@@ -289,25 +290,32 @@ void AppPottsAniso::load_table(char *filename, double *table) {
   // lookup table should contain entries for spin == 0
   // this way special energies can be assigned to particle interfaces
   // and it's easier to think about zero-based arrays
-  int table_size = ((nspins+2) * (nspins+1)) / 2;
+  int table_size = (nspins+1) + (nspins* (nspins+1)) / 2;
+  fprintf(stdout, "table_size = %d\n", table_size);
   delete [] table;
   table = new double[table_size];
 
-  // load table from file into memory
-  FILE *fileptr;
-  if (!(fileptr = fopen(filename, "r")))
-    error->all(FLERR,"Could not open lookup table file");
-  
-  double val = 0;
-  for (int r = 0; r <= nspins; r++) {
+  std::ifstream infile(filename);
+  if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
+  double val = -1;
+  int counts = 0;
+  for (int r = 0; r < nspins+1; r++) {
     for (int c = 0; c <= r; c++) {
       int address = ((r * (r+1)) / 2) + c;
-      fscanf(fileptr, "%f", &val); 
+      infile >> val;
       table[address] = val;
+      counts++;
     }
   }
-  fclose(fileptr);
+  // fclose(fileptr);
+  fprintf(stdout, "%d\n", counts);
 
+  FILE *fileptr;
+  fileptr = fopen("potts-table-test.mtab", "w");
+  for (int address = 0; address < table_size; address++) {
+    fprintf(fileptr, "%f\n", table[address]);
+  }
+  fclose(fileptr);
   return;
 }
 
