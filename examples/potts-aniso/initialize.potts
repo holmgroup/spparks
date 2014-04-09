@@ -2,11 +2,11 @@
 
 seed		 56789
 
-app_style	 potts 10000
+app_style	 potts 65536
 
 dimension	 2
 lattice		 sq/8n 1.0
-region		 box block 0 100 0 100 -0.5 0.5
+region		 box block 0 256 0 256 -0.5 0.5
 create_box	 box
 create_sites	 box
 set		 site unique
@@ -16,11 +16,11 @@ sector		 yes
 
 diag_style       energy
 
-temperature	 0.5
+temperature	 0.9
 
 stats            10.0
-dump             1 text 100.0 init*.potts
-dump             2 text 100.0 test*.potts id i1
+dump             1 text 35.0 init*.potts
+# dump             2 text 35.0 test*.potts id i1
 diag_style       cluster delt 1.0 stats no logfreq 9 10.0 filename cluster.dat
 
-run              100.0
+run              35.0

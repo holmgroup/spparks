@@ -63,7 +63,9 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
     // set fn pointer (*mobility) to the lookup function
     mobility = &AppPottsAniso::lookup_mobility;
     // load the mobility lookup table *m_table
+    fprintf(stdout, "loading mtab\n");
     load_table(m_filename, m_table);
+    fprintf(stdout, "finished loading mtab\n");
   }
   if (strcmp(command, "load_energy") == 0) {
     if (narg != 1) error->all(FLERR,"Illegal load_energy command");
@@ -74,7 +76,7 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
     // load the energy lookup table *e_table
     load_table(e_filename, e_table);
   }
-  else error->all(FLERR,"Unrecognized command");
+  // else error->all(FLERR,"Unrecognized command");
 }
 
 /* ----------------------------------------------------------------------
@@ -287,7 +289,7 @@ void AppPottsAniso::load_table(char *filename, double *table) {
   // lookup table should contain entries for spin == 0
   // this way special energies can be assigned to particle interfaces
   // and it's easier to think about zero-based arrays
-  int table_size = (nspins+1 * (nspins)) / 2;
+  int table_size = ((nspins+2) * (nspins+1)) / 2;
   delete [] table;
   table = new double[table_size];
 
