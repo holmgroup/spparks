@@ -32,8 +32,6 @@ class AppPottsAniso : public AppPotts {
   double site_propensity(int);
   void site_event(int, class RandomPark *);
 
-
- protected:
   double *e_table, *m_table;
 
  private:
@@ -44,7 +42,7 @@ class AppPottsAniso : public AppPotts {
   double lookup_energy(int,int);
   double lookup_mobility(int,int);
 
-  void load_table(char* filename, double* table);
+  double* load_table(char* filename);
 };
 
 }

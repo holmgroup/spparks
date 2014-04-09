@@ -65,7 +65,8 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
     mobility = &AppPottsAniso::lookup_mobility;
     // load the mobility lookup table *m_table
     fprintf(stdout, "loading mtab\n");
-    load_table(m_filename, m_table);
+    m_table = load_table(m_filename);
+    if (m_table == NULL) fprintf(stdout, "problem allocating m_table\n");
     fprintf(stdout, "finished loading mtab\n");
   }
   if (strcmp(command, "load_energy") == 0) {
@@ -75,9 +76,9 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
     // set fn pointer (*energy) to the lookup function
     energy = &AppPottsAniso::lookup_energy;
     // load the energy lookup table *e_table
-    load_table(e_filename, e_table);
+    e_table = load_table(e_filename);
   }
-  // else error->all(FLERR,"Unrecognized command");
+  else error->all(FLERR,"Unrecognized command");
 }
 
 /* ----------------------------------------------------------------------
@@ -281,10 +282,11 @@ double AppPottsAniso::lookup_mobility(int ispin, int jspin) {
   c = std::min(ispin, jspin);
   r = std::max(ispin, jspin);
   int address = ((r * (r+1)) / 2) + c;
+  printf("address: %d\n");
   return m_table[address];
 }
 
-void AppPottsAniso::load_table(char *filename, double *table) {
+double *AppPottsAniso::load_table(char *filename) {
   // allocate sparse triangular lookup table
   // including the diagonal elements
   // lookup table should contain entries for spin == 0
@@ -292,7 +294,7 @@ void AppPottsAniso::load_table(char *filename, double *table) {
   // and it's easier to think about zero-based arrays
   int table_size = (nspins+1) + (nspins* (nspins+1)) / 2;
   fprintf(stdout, "table_size = %d\n", table_size);
-  delete [] table;
+  double *table;
   table = new double[table_size];
 
   std::ifstream infile(filename);
@@ -316,6 +318,6 @@ void AppPottsAniso::load_table(char *filename, double *table) {
     fprintf(fileptr, "%f\n", table[address]);
   }
   fclose(fileptr);
-  return;
+  return table;
 }
 
