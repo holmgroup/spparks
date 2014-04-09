@@ -44,8 +44,9 @@ AppPottsAniso::AppPottsAniso(SPPARKS *spk, int narg, char **arg) :
 
 AppPottsAniso::~AppPottsAniso()
 {
-  delete [] sites;
-  delete [] unique;
+  // sites and unique are deleted by the ~AppPotts virtual destructor
+  // delete [] sites;
+  // delete [] unique;
   delete [] e_table;
   delete [] m_table;
 }
@@ -64,12 +65,14 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
     // set fn pointer (*mobility) to the lookup function
     mobility = &AppPottsAniso::lookup_mobility;
     // load the mobility lookup table *m_table
-    fprintf(stdout, "loading mtab\n");
+    fprintf(stdout, "loading mobility lookup table...");
+    nspins = 3896; // hack, hack
+    fprintf(stdout, "nspins: %d\n", nspins);
     m_table = load_table(m_filename);
     if (m_table == NULL) fprintf(stdout, "problem allocating m_table\n");
-    fprintf(stdout, "finished loading mtab\n");
+    fprintf(stdout, " finished.\n");
   }
-  if (strcmp(command, "load_energy") == 0) {
+  else if (strcmp(command, "load_energy") == 0) {
     if (narg != 1) error->all(FLERR,"Illegal load_energy command");
     // extract the filename for energy lookup table
     char *e_filename = arg[0];
@@ -108,16 +111,27 @@ void AppPottsAniso::init_app()
 
 double AppPottsAniso::site_energy(int i)
 {
-  int ispin = spin[i];
-  int jspin = 0;
+  int isite = spin[i];
+  int jsite = 0;
   double eng = 0;
-  for (int j = 0; j < numneigh[i]; j++)
-    jspin = spin[neighbor[i][j]];
-    if (ispin != jspin) {
-      eng += (this->*energy)(ispin, jspin);
+  double eng_inc = 0;
+  for (int j = 0; j < numneigh[i]; j++) {
+    jsite = spin[neighbor[i][j]];
+    if (isite != jsite) {
+      eng += (this->*energy)(isite, jsite);
     }
+  }
   return eng;
 }
+// double AppPottsAniso::site_energy(int i)
+// {
+//   int isite = spin[i];
+//   int eng = 0;
+//   for (int j = 0; j < numneigh[i]; j++)
+//     if (isite != spin[neighbor[i][j]]) eng++;
+//   return (double) eng;
+// }
+
 
 /* ----------------------------------------------------------------------
    rKMC method
@@ -137,14 +151,15 @@ void AppPottsAniso::site_event_rejection(int i, RandomPark *random)
   if (iran > nspins) iran = nspins;
   spin[i] = iran;
   double efinal = site_energy(i);
-
+  double M = (this->*mobility)(spin[i], oldstate);
   // accept or reject via Boltzmann criterion
   // null bin extends to nspins
 
-  if (efinal <= einitial) {
+  if (efinal <= einitial && random->uniform() < M) {
+    ;
   } else if (temperature == 0.0) {
     spin[i] = oldstate;
-  } else if (random->uniform() > (this->*mobility)(spin[i], oldstate) * exp((einitial-efinal)*t_inverse)) {
+  } else if (random->uniform() > M * exp((einitial-efinal)*t_inverse)) {
     spin[i] = oldstate;
   }
 
@@ -193,12 +208,14 @@ double AppPottsAniso::site_propensity(int i)
   double einitial = site_energy(i);
   double efinal;
   double prob = 0.0;
+  double M = 0.0;
 
   for (m = 0; m < nevent; m++) {
     spin[i] = unique[m];
     efinal = site_energy(i);
-    if (efinal <= einitial) prob += 1.0;
-    else if (temperature > 0.0) prob += (this->*mobility)(spin[i], oldstate) * exp((einitial-efinal)*t_inverse);
+    M = (this->*mobility)(spin[i], oldstate);
+    if (efinal <= einitial) prob += M;
+    else if (temperature > 0.0) prob += M * exp((einitial-efinal)*t_inverse);
   }
 
   spin[i] = oldstate;
@@ -225,6 +242,7 @@ void AppPottsAniso::site_event(int i, RandomPark *random)
   double einitial = site_energy(i);
   double prob = 0.0;
   int nevent = 0;
+  double M = 0.0;
 
   for (j = 0; j < numneigh[i]; j++) {
     value = spin[neighbor[i][j]];
@@ -236,8 +254,9 @@ void AppPottsAniso::site_event(int i, RandomPark *random)
 
     spin[i] = value;
     efinal = site_energy(i);
-    if (efinal <= einitial) prob += 1.0;
-    else if (temperature > 0.0) prob += (this->*mobility)(spin[i], oldstate) * exp((einitial-efinal)*t_inverse);
+    M = (this->*mobility)(spin[i], oldstate);
+    if (efinal <= einitial) prob += M;
+    else if (temperature > 0.0) prob += M * exp((einitial-efinal)*t_inverse);
     if (prob >= threshhold) break;
   }
 
@@ -262,11 +281,11 @@ void AppPottsAniso::site_event(int i, RandomPark *random)
 
 
 double AppPottsAniso::uniform_energy(int ispin, int jspin) {
-  return 1.0;
+  return 1;
 }
 
 double AppPottsAniso::uniform_mobility(int ispin, int jspin) {
-  return 1.0;
+  return 1;
 }
 
 double AppPottsAniso::lookup_energy(int ispin, int jspin) {
@@ -282,7 +301,6 @@ double AppPottsAniso::lookup_mobility(int ispin, int jspin) {
   c = std::min(ispin, jspin);
   r = std::max(ispin, jspin);
   int address = ((r * (r+1)) / 2) + c;
-  printf("address: %d\n");
   return m_table[address];
 }
 
@@ -293,31 +311,20 @@ double *AppPottsAniso::load_table(char *filename) {
   // this way special energies can be assigned to particle interfaces
   // and it's easier to think about zero-based arrays
   int table_size = (nspins+1) + (nspins* (nspins+1)) / 2;
-  fprintf(stdout, "table_size = %d\n", table_size);
   double *table;
   table = new double[table_size];
 
   std::ifstream infile(filename);
   if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
   double val = -1;
-  int counts = 0;
   for (int r = 0; r < nspins+1; r++) {
     for (int c = 0; c <= r; c++) {
       int address = ((r * (r+1)) / 2) + c;
       infile >> val;
       table[address] = val;
-      counts++;
     }
   }
-  // fclose(fileptr);
-  fprintf(stdout, "%d\n", counts);
 
-  FILE *fileptr;
-  fileptr = fopen("potts-table-test.mtab", "w");
-  for (int address = 0; address < table_size; address++) {
-    fprintf(fileptr, "%f\n", table[address]);
-  }
-  fclose(fileptr);
   return table;
 }
 

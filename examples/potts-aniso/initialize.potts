@@ -2,11 +2,11 @@
 
 seed		 56789
 
-app_style	 potts 65536
+app_style	 potts 262144
 
 dimension	 2
 lattice		 sq/8n 1.0
-region		 box block 0 256 0 256 -0.5 0.5
+region		 box block 0 512 0 512 -0.5 0.5
 create_box	 box
 create_sites	 box
 set		 site unique
