@@ -66,8 +66,6 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
     mobility = &AppPottsAniso::lookup_mobility;
     // load the mobility lookup table *m_table
     fprintf(stdout, "loading mobility lookup table...");
-    nspins = 3896; // hack, hack
-    fprintf(stdout, "nspins: %d\n", nspins);
     m_table = load_table(m_filename);
     if (m_table == NULL) fprintf(stdout, "problem allocating m_table\n");
     fprintf(stdout, " finished.\n");
