@@ -2,7 +2,7 @@
 
 seed		 56789
 
-app_style	 potts/aniso 389600
+app_style	 potts/aniso 3896
 
 dimension	 2
 lattice		 sq/8n 1.0
@@ -19,7 +19,7 @@ diag_style       energy
 
 temperature	 0.9
 
-stats            100.0
-dump             1 text 1000.0 dump*.potts
+stats            2500.0
+dump             1 text 25000.0 dump*.potts
 
-run              1000.0
+run              25000.0
