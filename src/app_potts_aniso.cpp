@@ -308,18 +308,25 @@ double *AppPottsAniso::load_table(char *filename) {
   // lookup table should contain entries for spin == 0
   // this way special energies can be assigned to particle interfaces
   // and it's easier to think about zero-based arrays
+
+  // fragile header-parsing code, updates nspins
+  std::string line;
+  std::ifstream infile(filename);
+  if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
+  std::getline(infile, line); // ignore the first line
+  infile >> nspins >> line; // second line of file header is "$nspins spins"
+
   int table_size = (nspins+1) + (nspins* (nspins+1)) / 2;
   double *table;
   table = new double[table_size];
 
-  std::ifstream infile(filename);
-  if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
-  double val = -1;
+  double value = -1;
   for (int r = 0; r < nspins+1; r++) {
     for (int c = 0; c <= r; c++) {
       int address = ((r * (r+1)) / 2) + c;
-      infile >> val;
-      table[address] = val;
+      infile >> value;
+      if (value < 0.0 || value > 1.0) error->all(FLERR,"Improperly specified lookup table");
+      table[address] = value;
     }
   }
 

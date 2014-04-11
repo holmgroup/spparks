@@ -2,7 +2,7 @@
 
 seed		 56789
 
-app_style	 potts/aniso 3896
+app_style	 potts/aniso 1
 
 dimension	 2
 lattice		 sq/8n 1.0
