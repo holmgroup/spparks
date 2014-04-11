@@ -19,7 +19,7 @@ diag_style       energy
 
 temperature	 0.9
 
-stats            2500.0
-dump             1 text 25000.0 dump*.potts
+stats            5000.0
+dump             1 text 500000.0 dump*.potts
 
-run              25000.0
+run              500000.0
