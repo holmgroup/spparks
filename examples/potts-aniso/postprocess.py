@@ -2,8 +2,6 @@
 
 import numpy as np
 import spktools.input as spkin
-import spktools.texture.ori_gen as spktex
-import spktools.special_grain as spkspec
 
 infile = 'dump1.potts'
 nsites, x_dim, y_dim, z_dim, spins, pos = spkin.parse_potts(infile)
