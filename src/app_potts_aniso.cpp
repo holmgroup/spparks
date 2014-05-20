@@ -333,3 +333,34 @@ double *AppPottsAniso::load_table(char *filename) {
   return table;
 }
 
+double *AppPottsAniso::load_euler_orientations(char *filename) {
+  // load Bunge convention Euler angles from file into a flat array
+  // fragile header-parsing code, updates nspins
+  std::string line;
+  std::ifstream infile(filename);
+  if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
+  std::getline(infile, line); // ignore the first line
+  infile >> nspins >> line; // second line of file header is "$nspins spins"
+
+  int table_size = 3 * (nspins+1);
+  double *euler_table;
+  euler_table = new double[table_size];
+  std::memset(euler_table, 0, table_size*sizeof(*euler_table));
+  
+  double phi_1, Phi, phi_2 = 0.0;
+  // euler_table[0-2] is reserved for spin == 0
+  for (int id_spin = 1; id_spin < nspins+1; id_spin++) {
+    infile >> phi_1; infile >> Phi; infile >> phi_2;
+    if (phi_1 < 0.0 || phi_1 > 360.0) error->all(FLERR,"Improperly specified Euler angle");
+    if (Phi < 0.0 || Phi > 180.0) error->all(FLERR,"Improperly specified Euler angle");
+    if (phi_2 < 0.0 || phi_2 > 360.0) error->all(FLERR,"Improperly specified Euler angle");
+
+    int address = 3 * id_spin;
+    euler_table[address]     = phi_1;
+    euler_table[address + 1] = Phi;
+    euler_table[address + 2] = phi_2;
+    }
+  }
+
+  return euler_table;
+}
