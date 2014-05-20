@@ -32,7 +32,7 @@ class AppPottsAniso : public AppPotts {
   double site_propensity(int);
   void site_event(int, class RandomPark *);
 
-  double *e_table, *m_table;
+  double *e_table, *m_table, *ori_table, *symm_table;
 
  private:
   double (AppPottsAniso::*energy)(int,int);
@@ -42,7 +42,9 @@ class AppPottsAniso : public AppPotts {
   double lookup_energy(int,int);
   double lookup_mobility(int,int);
 
-  double* load_table(char* filename);
+  double* load_table(char*);
+  double* load_euler_orientations(char*);
+  double* load_symm_table(char*);
 };
 
 }

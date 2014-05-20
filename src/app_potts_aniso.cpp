@@ -24,7 +24,7 @@
 #include <map>
 #include <algorithm>
 #include <fstream>
-
+#include "math_const.h"
 using namespace SPPARKS_NS;
 
 /* ---------------------------------------------------------------------- */
@@ -334,7 +334,7 @@ double *AppPottsAniso::load_table(char *filename) {
 }
 
 double *AppPottsAniso::load_euler_orientations(char *filename) {
-  // load Bunge convention Euler angles from file into a flat array
+  // load Bunge convention Euler angles (degrees) from file into a flat array
   // fragile header-parsing code, updates nspins
   std::string line;
   std::ifstream infile(filename);
@@ -363,4 +363,26 @@ double *AppPottsAniso::load_euler_orientations(char *filename) {
   }
 
   return euler_table;
+}
+
+void quat_from_Bunge(double phi_1, double Phi, double phi_2, double *address) {
+  /* accepts Bunge convention Euler angles in degrees
+     computes a quaternion representation */
+  const double rad = MathConst::MY_PI / 180.0;
+  phi_1 = phi_1 * rad;
+  Phi   = Phi   * rad;
+  phi_2 = phi_2 * rad;
+  
+  double x, y, z, w = 0.0;
+  x = sin(Phi/2) * cos((phi_1 - phi_2) / 2);
+  y = sin(Phi/2) * sin((phi_1 - phi_2) / 2);
+  z = cos(Phi/2) * sin((phi_1 + phi_2) / 2);
+  w = cos(Phi/2) * cos((phi_1 + phi_2) / 2);
+
+  *address     = x;
+  *address + 1 = y;
+  *address + 2 = z;
+  *address + 3 = w;
+
+  return;
 }
