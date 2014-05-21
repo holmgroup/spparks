@@ -284,14 +284,25 @@ void AppPottsAniso::site_event(int i, RandomPark *random)
   solve->update(nsites,sites,propensity);
 }
 
+/* ----------------------------------------------------------------------
+   return uniform grain boundary energy
+------------------------------------------------------------------------- */
 
 double AppPottsAniso::uniform_energy(int ispin, int jspin) {
   return 1;
 }
 
+/* ----------------------------------------------------------------------
+   return uniform grain boundary mobility
+------------------------------------------------------------------------- */
+
 double AppPottsAniso::uniform_mobility(int ispin, int jspin) {
   return 1;
 }
+
+/* ----------------------------------------------------------------------
+   Look up the energy of the (ispin, jspin) grain boundary
+------------------------------------------------------------------------- */
 
 double AppPottsAniso::lookup_energy(int ispin, int jspin) {
   int r,c;
@@ -301,6 +312,10 @@ double AppPottsAniso::lookup_energy(int ispin, int jspin) {
   return e_table[address];
 }
 
+/* ----------------------------------------------------------------------
+   Lookup the mobility of the (ispin, jspin) grain boundary
+------------------------------------------------------------------------- */
+
 double AppPottsAniso::lookup_mobility(int ispin, int jspin) {
   int r,c;
   c = std::min(ispin, jspin);
@@ -309,12 +324,15 @@ double AppPottsAniso::lookup_mobility(int ispin, int jspin) {
   return m_table[address];
 }
 
+/* ----------------------------------------------------------------------
+   allocate sparse triangular lookup table and populate from file
+   including the diagonal elements
+   lookup table should contain entries for spin == 0
+   this way special energies can be assigned to particle interfaces
+   and it's easier to think about zero-based arrays
+------------------------------------------------------------------------- */
+
 double *AppPottsAniso::load_table(char *filename) {
-  // allocate sparse triangular lookup table
-  // including the diagonal elements
-  // lookup table should contain entries for spin == 0
-  // this way special energies can be assigned to particle interfaces
-  // and it's easier to think about zero-based arrays
 
   // fragile header-parsing code, updates nspins
   std::string line;
@@ -340,8 +358,34 @@ double *AppPottsAniso::load_table(char *filename) {
   return table;
 }
 
+/* ----------------------------------------------------------------------
+   Populate e_table with Read-Shockley energies
+   based on misorientation angles in misori_table
+------------------------------------------------------------------------- */
+
+double* AppPottsAniso::read_shockley_table() {
+  int table_size = (nspins+1) + (nspins* (nspins+1)) / 2;
+  double *table;
+  misori_table = new double[table_size];
+  memset(misori_table, 0, table_size*sizeof(*table));
+
+  return table;
+}
+
+/* ----------------------------------------------------------------------
+   Compute the Read-Shockley energy for a grain boundary with
+   minimum misorientation angle misori_angle (radians)
+------------------------------------------------------------------------- */
+double AppPottsAniso::read_shockley_energy(double misori_angle) {
+  double RS_energy = 0;
+  return RS_energy;
+}
+
+/* ----------------------------------------------------------------------
+   Compute a triangular table of misorientation angles in radians 
+------------------------------------------------------------------------- */
+
 void AppPottsAniso::compute_misorientation_angles() {
-  /* Compute a triangular table of misorientation angles in radians */
   // load the symmetry operators from a file
   // containing (x,y,z,w) unit quaternions
   double* symm = NULL;
@@ -363,11 +407,16 @@ void AppPottsAniso::compute_misorientation_angles() {
       qmis = misori(ori_r, ori_c, N_symm, symm);
       angle = 2 * acos(qmis.w());
       int address = ((r * (r+1)) / 2) + c;
-      table[address] = angle;
+      misori_table[address] = angle;
     }
   }
   return;
 }
+
+/* ----------------------------------------------------------------------
+   Compute the minimum misorientation using the unit quaternion method
+   Returns the full misorientation in the fundamental zone.
+------------------------------------------------------------------------- */
 
 Quaternion<double> AppPottsAniso::misori(Quaternion<double> ori_a, Quaternion<double> ori_b, int N_symm, double *symm) {
   Quaternion<double> min_misori(0,0,0,0);
@@ -406,23 +455,29 @@ Quaternion<double> AppPottsAniso::misori(Quaternion<double> ori_a, Quaternion<do
       }
     }
   }
-  // copy min_misori into mis
   return min_misori;
 }
 
+/* ----------------------------------------------------------------------
+   test the axis for cubic FZ membership
+   this filters to the standard stereographic triangle for cubics
+------------------------------------------------------------------------- */
+
 bool AppPottsAniso::cubic_FZ_test(Quaternion<double> quat) {
-  // test the axis for cubic FZ membership
-  // this filters to the standard stereographic triangle for cubics
+  
   return ( 0 <= quat.x()
 	   && quat.x() <= quat.y()
 	   && quat.y() <= quat.z()
 	   && quat.z() <= quat.w());
 }
 
+/* ----------------------------------------------------------------------
+   read symmetry operator from file -- Professor Rollett's quat.symm.${type}
+   order: "N_variants"
+   body: "x y z w" quaternion components
+------------------------------------------------------------------------- */
+
 double *AppPottsAniso::load_symmetry(int &N_symm, std::string infile_name) {
-  // read symmetry operator from file -- Professor Rollett's quat.symm.${type}
-  // order: "N_variants"
-  // body: "x y z w" quaternion components
   std::string header_line;
   std::fstream symmfile(infile_name.c_str());
   std::getline(symmfile, header_line);
@@ -444,10 +499,13 @@ double *AppPottsAniso::load_symmetry(int &N_symm, std::string infile_name) {
 }
 
 
+/* ----------------------------------------------------------------------
+   load Bunge convention Euler angles (degrees) from file
+   into a flat array of quaternions {x,y,z,w}
+   fragile header-parsing code, updates nspins
+------------------------------------------------------------------------- */
+
 double *AppPottsAniso::load_euler_orientations_as_quats(char *filename) {
-  // load Bunge convention Euler angles (degrees) from file
-  // into a flat array of quaternions {x,y,z,w}
-  // fragile header-parsing code, updates nspins
   std::string line;
   std::ifstream infile(filename);
   if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
@@ -474,9 +532,13 @@ double *AppPottsAniso::load_euler_orientations_as_quats(char *filename) {
   return euler_table;
 }
 
+/* ----------------------------------------------------------------------
+quat_from_Bunge
+accepts Bunge convention Euler angles in degrees
+computes a quaternion representation 
+------------------------------------------------------------------------- */
+
 void AppPottsAniso::quat_from_Bunge(double phi_1, double Phi, double phi_2, double *xyzw) {
-  /* accepts Bunge convention Euler angles in degrees
-     computes a quaternion representation */
   const double rad = MathConst::MY_PI / 180.0;
   phi_1 = phi_1 * rad;
   Phi   = Phi   * rad;
