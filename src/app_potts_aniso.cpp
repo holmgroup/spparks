@@ -370,7 +370,7 @@ double *AppPottsAniso::load_euler_orientations_as_quats(char *filename) {
   return euler_table;
 }
 
-void quat_from_Bunge(double phi_1, double Phi, double phi_2, double *xyzw) {
+void AppPottsAniso::quat_from_Bunge(double phi_1, double Phi, double phi_2, double *xyzw) {
   /* accepts Bunge convention Euler angles in degrees
      computes a quaternion representation */
   const double rad = MathConst::MY_PI / 180.0;
@@ -392,7 +392,7 @@ void quat_from_Bunge(double phi_1, double Phi, double phi_2, double *xyzw) {
   return;
 }
 
-void compute_misorientation_angles() {
+void AppPottsAniso::compute_misorientation_angles() {
   /* Compute a triangular table of misorientation angles in radians */
   // load the symmetry operators from a file
   // containing (x,y,z,w) unit quaternions
@@ -421,7 +421,7 @@ void compute_misorientation_angles() {
   return;
 }
 
-Quaternion<double> misori(Quaternion<double> ori_a, Quaternion<double> ori_b, int N_symm, double *symm) {
+Quaternion<double> AppPottsAniso::misori(Quaternion<double> ori_a, Quaternion<double> ori_b, int N_symm, double *symm) {
   Quaternion<double> min_misori(0,0,0,0);
   Quaternion<double> m(0,0,0,0);
   Quaternion<double> temp;
@@ -462,7 +462,7 @@ Quaternion<double> misori(Quaternion<double> ori_a, Quaternion<double> ori_b, in
   return min_misori;
 }
 
-bool cubic_FZ_test(Quaternion<double> quat) {
+bool AppPottsAniso::cubic_FZ_test(Quaternion<double> quat) {
   // test the axis for cubic FZ membership
   // this filters to the standard stereographic triangle for cubics
   return ( 0 <= quat.x()
@@ -471,7 +471,7 @@ bool cubic_FZ_test(Quaternion<double> quat) {
 	   && quat.z() <= quat.w());
 }
 
-double* load_symmetry(int &N_symm, std::string infile_name) {
+double *AppPottsAniso::load_symmetry(int &N_symm, std::string infile_name) {
   // read symmetry operator from file -- Professor Rollett's quat.symm.${type}
   // order: "N_variants"
   // body: "x y z w" quaternion components
