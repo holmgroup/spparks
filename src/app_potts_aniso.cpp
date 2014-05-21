@@ -42,6 +42,7 @@ AppPottsAniso::AppPottsAniso(SPPARKS *spk, int narg, char **arg) :
   energy = &AppPottsAniso::uniform_energy;
   mobility = &AppPottsAniso::uniform_mobility;
   e_table = m_table = NULL;
+  ori_table = misori_table = NULL;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -53,6 +54,8 @@ AppPottsAniso::~AppPottsAniso()
   // delete [] unique;
   delete [] e_table;
   delete [] m_table;
+  delete [] ori_table;
+  delete [] misori_table;
 }
 
 
@@ -348,8 +351,7 @@ double *AppPottsAniso::load_euler_orientations_as_quats(char *filename) {
   infile >> nspins >> line; // second line of file header is "$nspins spins"
 
   int table_size = 4 * (nspins+1);
-  double *ori_table;
-  euler_table = new double[table_size];
+  ori_table = new double[table_size];
   std::memset(ori_table, 0, table_size*sizeof(*ori_table));
   
   double phi_1, Phi, phi_2 = 0.0;
@@ -391,11 +393,82 @@ void quat_from_Bunge(double phi_1, double Phi, double phi_2, double *xyzw) {
 }
 
 void compute_misorientation_angles() {
-
+  /* Compute a triangular table of misorientation angles in radians */
+  // load the symmetry operators from a file
+  // containing (x,y,z,w) unit quaternions
   double* symm = NULL;
   int N_symm = 0;
   symm = load_symmetry(N_symm, symmetry_filename);
 
+  int table_size = (nspins+1) + (nspins* (nspins+1)) / 2;
+  double *table;
+  misori_table = new double[table_size];
+  memset(misori_table, 0, table_size*sizeof(*table));
+
+  Quaternion qmis;
+  double angle;
+  // skip over entries involving spin = 0 -- start at 1
+  for (int r = 1; r < nspins+1; r++) {
+    for (int c = 1; c <= r; c++) {
+      Eigen::Map<Quaternion<double> > ori_r(&ori_table[r]);
+      Eigen::Map<Quaternion<double> > ori_c(&ori_table[c]);
+      qmis = misori(ori_r, ori_c, N_symm, symm);
+      angle = 2 * acos(qmis.w());
+      int address = ((r * (r+1)) / 2) + c;
+      table[address] = angle;
+    }
+  }
+  return;
+}
+
+Quaternion<double> misori(Quaternion<double> ori_a, Quaternion<double> ori_b, int N_symm, double *symm) {
+  Quaternion<double> min_misori(0,0,0,0);
+  Quaternion<double> m(0,0,0,0);
+  Quaternion<double> temp;
+  double max_w = 0.0;
+
+  // calculate misorientation: g_b inv(g_a)
+  m = ori_b * ori_a.inverse();
+  m = m.normalized();
+  // for the i-th crystal symmetry operator calculate O_i mis
+  for (int i = 0; i < N_symm; i++) {
+    Eigen::Map<Quaternion<double> > i_temp(&symm[i*4]); 
+    // for the j-th crystal symmetry operator calculate O_i mis O_j
+    for (int j = 0; j < N_symm; j++) {
+      Eigen::Map<Quaternion<double> > j_temp(&symm[j*4]);
+      temp = i_temp * m * j_temp;
+      // (x,y,z,w) == (-x,-y,-z,-w)
+      // looping over id_sign accounts for that
+      for (int id_sign = 0; id_sign < 2; id_sign++) {
+	temp.x() = -temp.x();
+	temp.y() = -temp.y();
+	temp.z() = -temp.z();
+	temp.w() = -temp.w();
+	// Apply switching symmetry
+	for (int id_switch = 0; id_switch < 2; id_switch++) {
+	  temp = temp.inverse();
+	  if (cubic_FZ_test(temp)) {
+	    // test the angle for minimum criterion
+	    if (temp.w() > max_w) {
+	      max_w = temp.w();
+	      min_misori = temp;
+	    }
+	  }
+	}
+      }
+    }
+  }
+  // copy min_misori into mis
+  return min_misori;
+}
+
+bool cubic_FZ_test(Quaternion<double> quat) {
+  // test the axis for cubic FZ membership
+  // this filters to the standard stereographic triangle for cubics
+  return ( 0 <= quat.x()
+	   && quat.x() <= quat.y()
+	   && quat.y() <= quat.z()
+	   && quat.z() <= quat.w());
 }
 
 double* load_symmetry(int &N_symm, std::string infile_name) {

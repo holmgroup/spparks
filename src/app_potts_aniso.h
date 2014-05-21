@@ -32,7 +32,7 @@ class AppPottsAniso : public AppPotts {
   double site_propensity(int);
   void site_event(int, class RandomPark *);
 
-  double *e_table, *m_table, *ori_table, *symm_table;
+  double *e_table, *m_table, *ori_table, *misori_table;
 
  private:
   double (AppPottsAniso::*energy)(int,int);
@@ -41,10 +41,15 @@ class AppPottsAniso : public AppPotts {
   double uniform_mobility(int,int);
   double lookup_energy(int,int);
   double lookup_mobility(int,int);
-
   double* load_table(char*);
+
+  Quaternion<double> misori(Quaternion<double>,
+			    Quaternion<double>,
+			    int, double*);
+  bool cubic_FZ_test(Quaternion<double>);
   double* load_euler_orientations_as_quats(char*);
-  void    quat_from_Bunge(double,double,double,double*);
+  void quat_from_Bunge(double,double,double,double*);
+  void compute_misorientation_angles();
   double* load_symm_table(char*);
 };
 
