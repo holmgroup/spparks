@@ -384,7 +384,7 @@ double* AppPottsAniso::read_shockley_table() {
    minimum misorientation angle misori_angle (radians)
 ------------------------------------------------------------------------- */
 double AppPottsAniso::read_shockley_energy(double misori_angle) {
-  double RS_energy = 0;
+  double RS_energy = 1;
   return RS_energy;
 }
 
