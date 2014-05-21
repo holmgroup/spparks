@@ -365,9 +365,16 @@ double *AppPottsAniso::load_table(char *filename) {
 
 double* AppPottsAniso::read_shockley_table() {
   int table_size = (nspins+1) + (nspins* (nspins+1)) / 2;
-  double *table;
-  misori_table = new double[table_size];
-  memset(misori_table, 0, table_size*sizeof(*table));
+  double* table = NULL;
+  table = new double[table_size];
+  memset(table, 0, table_size*sizeof(*table));
+
+  for (int r = 0; r < nspins+1; r++) {
+    for (int c = 0; c <= r; c++) {
+      int address = ((r * (r+1)) / 2) + c;
+      table[address] = read_shockley_energy(misori_table[address]);
+    }
+  }
 
   return table;
 }
@@ -385,19 +392,18 @@ double AppPottsAniso::read_shockley_energy(double misori_angle) {
    Compute a triangular table of misorientation angles in radians 
 ------------------------------------------------------------------------- */
 
-void AppPottsAniso::compute_misorientation_angles() {
+void AppPottsAniso::compute_misorientation_angles(std::string symmetry_filename) {
   // load the symmetry operators from a file
   // containing (x,y,z,w) unit quaternions
   double* symm = NULL;
   int N_symm = 0;
-  symm = load_symmetry(N_symm, symmetry_filename);
+  symm = load_symm_table(N_symm, symmetry_filename);
 
   int table_size = (nspins+1) + (nspins* (nspins+1)) / 2;
-  double *table;
   misori_table = new double[table_size];
-  memset(misori_table, 0, table_size*sizeof(*table));
+  memset(misori_table, 0, table_size*sizeof(*misori_table));
 
-  Quaternion qmis;
+  Quaternion<double> qmis;
   double angle;
   // skip over entries involving spin = 0 -- start at 1
   for (int r = 1; r < nspins+1; r++) {
@@ -477,7 +483,7 @@ bool AppPottsAniso::cubic_FZ_test(Quaternion<double> quat) {
    body: "x y z w" quaternion components
 ------------------------------------------------------------------------- */
 
-double *AppPottsAniso::load_symmetry(int &N_symm, std::string infile_name) {
+double *AppPottsAniso::load_symm_table(int &N_symm, std::string infile_name) {
   std::string header_line;
   std::fstream symmfile(infile_name.c_str());
   std::getline(symmfile, header_line);
@@ -526,10 +532,9 @@ double *AppPottsAniso::load_euler_orientations_as_quats(char *filename) {
 
     int offset = 4 * id_spin;
     quat_from_Bunge(phi_1, Phi, phi_2, &(ori_table[offset]));
-    }
   }
 
-  return euler_table;
+  return ori_table;
 }
 
 /* ----------------------------------------------------------------------
