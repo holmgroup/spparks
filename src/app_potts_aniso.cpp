@@ -25,7 +25,11 @@
 #include <algorithm>
 #include <fstream>
 #include "math_const.h"
+
+#include <Eigen/Geometry>
+
 using namespace SPPARKS_NS;
+using Eigen::Quaternion;
 
 /* ---------------------------------------------------------------------- */
 
@@ -384,4 +388,36 @@ void quat_from_Bunge(double phi_1, double Phi, double phi_2, double *xyzw) {
   xyzw[3] = w;
 
   return;
+}
+
+void compute_misorientation_angles() {
+
+  double* symm = NULL;
+  int N_symm = 0;
+  symm = load_symmetry(N_symm, symmetry_filename);
+
+}
+
+double* load_symmetry(int &N_symm, std::string infile_name) {
+  // read symmetry operator from file -- Professor Rollett's quat.symm.${type}
+  // order: "N_variants"
+  // body: "x y z w" quaternion components
+  std::string header_line;
+  std::fstream symmfile(infile_name.c_str());
+  std::getline(symmfile, header_line);
+  symmfile >> N_symm;
+
+  double* symm;
+  symm = new double[4*N_symm];
+  std::memset(symm, 0, 4*N_symm*sizeof(*symm));
+
+  double x,y,z,w = 0.0;
+  for (int i = 0; i < N_symm; i++) {
+    int offset = i*4;
+    symmfile >> symm[offset] >> symm[offset+1] >> symm[offset+2] >> symm[offset+3]; 
+    Eigen::Map<Quaternion<double> > quat(&symm[offset]);
+    quat.normalize();
+  }
+	   
+  return symm;
 }
