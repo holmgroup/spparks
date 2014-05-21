@@ -43,7 +43,8 @@ class AppPottsAniso : public AppPotts {
   double lookup_mobility(int,int);
 
   double* load_table(char*);
-  double* load_euler_orientations(char*);
+  double* load_euler_orientations_as_quats(char*);
+  void    quat_from_Bunge(double,double,double,double*);
   double* load_symm_table(char*);
 };
 
