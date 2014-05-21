@@ -340,58 +340,6 @@ double *AppPottsAniso::load_table(char *filename) {
   return table;
 }
 
-double *AppPottsAniso::load_euler_orientations_as_quats(char *filename) {
-  // load Bunge convention Euler angles (degrees) from file
-  // into a flat array of quaternions {x,y,z,w}
-  // fragile header-parsing code, updates nspins
-  std::string line;
-  std::ifstream infile(filename);
-  if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
-  std::getline(infile, line); // ignore the first line
-  infile >> nspins >> line; // second line of file header is "$nspins spins"
-
-  int table_size = 4 * (nspins+1);
-  ori_table = new double[table_size];
-  std::memset(ori_table, 0, table_size*sizeof(*ori_table));
-  
-  double phi_1, Phi, phi_2 = 0.0;
-  // ori_table[0-3] is reserved for spin == 0
-  for (int id_spin = 1; id_spin < nspins+1; id_spin++) {
-    infile >> phi_1; infile >> Phi; infile >> phi_2;
-    if (phi_1 < 0.0 || phi_1 > 360.0) error->all(FLERR,"Improperly specified Euler angle");
-    if (Phi < 0.0 || Phi > 180.0) error->all(FLERR,"Improperly specified Euler angle");
-    if (phi_2 < 0.0 || phi_2 > 360.0) error->all(FLERR,"Improperly specified Euler angle");
-
-    int offset = 4 * id_spin;
-    quat_from_Bunge(phi_1, Phi, phi_2, &(ori_table[offset]));
-    }
-  }
-
-  return euler_table;
-}
-
-void AppPottsAniso::quat_from_Bunge(double phi_1, double Phi, double phi_2, double *xyzw) {
-  /* accepts Bunge convention Euler angles in degrees
-     computes a quaternion representation */
-  const double rad = MathConst::MY_PI / 180.0;
-  phi_1 = phi_1 * rad;
-  Phi   = Phi   * rad;
-  phi_2 = phi_2 * rad;
-  
-  double x, y, z, w = 0.0;
-  x = sin(Phi/2) * cos((phi_1 - phi_2) / 2);
-  y = sin(Phi/2) * sin((phi_1 - phi_2) / 2);
-  z = cos(Phi/2) * sin((phi_1 + phi_2) / 2);
-  w = cos(Phi/2) * cos((phi_1 + phi_2) / 2);
-
-  xyzw[0] = x;
-  xyzw[1] = y;
-  xyzw[2] = z;
-  xyzw[3] = w;
-
-  return;
-}
-
 void AppPottsAniso::compute_misorientation_angles() {
   /* Compute a triangular table of misorientation angles in radians */
   // load the symmetry operators from a file
@@ -493,4 +441,57 @@ double *AppPottsAniso::load_symmetry(int &N_symm, std::string infile_name) {
   }
 	   
   return symm;
+}
+
+
+double *AppPottsAniso::load_euler_orientations_as_quats(char *filename) {
+  // load Bunge convention Euler angles (degrees) from file
+  // into a flat array of quaternions {x,y,z,w}
+  // fragile header-parsing code, updates nspins
+  std::string line;
+  std::ifstream infile(filename);
+  if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
+  std::getline(infile, line); // ignore the first line
+  infile >> nspins >> line; // second line of file header is "$nspins spins"
+
+  int table_size = 4 * (nspins+1);
+  ori_table = new double[table_size];
+  std::memset(ori_table, 0, table_size*sizeof(*ori_table));
+  
+  double phi_1, Phi, phi_2 = 0.0;
+  // ori_table[0-3] is reserved for spin == 0
+  for (int id_spin = 1; id_spin < nspins+1; id_spin++) {
+    infile >> phi_1; infile >> Phi; infile >> phi_2;
+    if (phi_1 < 0.0 || phi_1 > 360.0) error->all(FLERR,"Improperly specified Euler angle");
+    if (Phi < 0.0 || Phi > 180.0) error->all(FLERR,"Improperly specified Euler angle");
+    if (phi_2 < 0.0 || phi_2 > 360.0) error->all(FLERR,"Improperly specified Euler angle");
+
+    int offset = 4 * id_spin;
+    quat_from_Bunge(phi_1, Phi, phi_2, &(ori_table[offset]));
+    }
+  }
+
+  return euler_table;
+}
+
+void AppPottsAniso::quat_from_Bunge(double phi_1, double Phi, double phi_2, double *xyzw) {
+  /* accepts Bunge convention Euler angles in degrees
+     computes a quaternion representation */
+  const double rad = MathConst::MY_PI / 180.0;
+  phi_1 = phi_1 * rad;
+  Phi   = Phi   * rad;
+  phi_2 = phi_2 * rad;
+  
+  double x, y, z, w = 0.0;
+  x = sin(Phi/2) * cos((phi_1 - phi_2) / 2);
+  y = sin(Phi/2) * sin((phi_1 - phi_2) / 2);
+  z = cos(Phi/2) * sin((phi_1 + phi_2) / 2);
+  w = cos(Phi/2) * cos((phi_1 + phi_2) / 2);
+
+  xyzw[0] = x;
+  xyzw[1] = y;
+  xyzw[2] = z;
+  xyzw[3] = w;
+
+  return;
 }
