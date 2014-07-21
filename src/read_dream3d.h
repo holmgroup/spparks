@@ -20,7 +20,8 @@ CommandStyle(read_dream3d,ReadDream3d)
 #define SPK_READ_DREAM3D_H
 
 #include "pointers.h"
-#include "hdf5.h"
+// #include "hdf5.h"
+#include "H5Cpp.h"
 #include "hdf5_hl.h"
 
 namespace SPPARKS_NS {
@@ -57,6 +58,8 @@ class ReadDream3d : protected Pointers {
   void values();
   
   int count_words(char *);
+
+  void get_dimensions(hid_t file_id);
 };
 
 }

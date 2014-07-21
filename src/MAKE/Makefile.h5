@@ -49,7 +49,7 @@ JPG_LIB =	-ljpeg
 # HDF5 library, only needed if -DSPPARKS_HDF5 is set in SPPARKS_INC
 
 HDF_INC =   # /usr/include/hdf5_hl.h
-HDF_PATH =  /usr/lib/libhdf5_hl.so
+HDF_PATH =  /usr/lib/libhdf5_hl.so /usr/lib/libhdf5_cpp.so
 HDF_LIB =   -lhdf5
 
 # ---------------------------------------------------------------------

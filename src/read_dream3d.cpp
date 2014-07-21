@@ -80,33 +80,15 @@ void ReadDream3d::command(int narg, char **arg)
     error->all(FLERR, "Cannot read DREAM3D file for off-lattice apps.");
   }
 
-  // read header info
-
+  // proc 0 opens the dream3d file
   if (me == 0) {
     if (screen) fprintf(screen,"Reading dream3d file ...\n");
     // make sure the file exists first
     file_id = H5Fopen(arg[0], H5F_ACC_RDONLY, H5P_DEFAULT);
   }
-  // header();
-
+   
   // extract dimensions of simulation volume
-  int dims_buf[3] = { 0, 0, 0}; 
-  h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/DIMENSIONS", dims_buf);
-  std::cout << "dataset dimensions: " << dims_buf[0] << " x " << dims_buf[1] << " x " << dims_buf[2];
-  std::cout << std::endl;
-
-  if (dims_buf[0] > 1) {
-    boxxlo = 0;
-    boxxhi = dims_buf[1];
-  }
-  if (dims_buf[1] > 1) {
-    boxylo = 0;
-    boxyhi = dims_buf[1];
-  }
-  if (dims_buf[2] > 1) {
-    boxzlo = 0;
-    boxzhi = dims_buf[2];
-  }
+  get_dimensions(file_id);
 
   // create a simulation box
   if (!domain->box_exist) {
@@ -556,3 +538,24 @@ void ReadDream3d::open(char *file)
 void ReadDream3d::parse_keyword(int) {}
 void ReadDream3d::parse_coeffs(int, char *) {}
 int ReadDream3d::count_words(char *) {}
+
+void ReadDream3d::get_dimensions(hid_t file_id) {
+  int dims_buf[3] = {0, 0, 0};
+  h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/DIMENSIONS", dims_buf);
+  std::cout << "dataset dimensions: " << dims_buf[0] << " x " << dims_buf[1] << " x " << dims_buf[2];
+  std::cout << std::endl;
+
+  if (dims_buf[0] > 1) {
+    boxxlo = 0;
+    boxxhi = dims_buf[1];
+  }
+  if (dims_buf[1] > 1) {
+    boxylo = 0;
+    boxyhi = dims_buf[1];
+  }
+  if (dims_buf[2] > 1) {
+    boxzlo = 0;
+    boxzhi = dims_buf[2];
+  }
+  return;
+}
