@@ -77,20 +77,38 @@ void ReadDream3d::command(int narg, char **arg)
     applattice = (AppLattice *) app;
     latticeflag = 1;
   } else if (app->appclass == App::OFF_LATTICE) {
-    appoff = (AppOffLattice *) app;
-    latticeflag = 0;
+    error->all(FLERR, "Cannot read DREAM3D file for off-lattice apps.");
   }
 
   // read header info
 
   if (me == 0) {
-    if (screen) fprintf(screen,"Reading Dream3d file ...\n");
-    open(arg[0]);
+    if (screen) fprintf(screen,"Reading dream3d file ...\n");
+    // make sure the file exists first
+    file_id = H5Fopen(arg[0], H5F_ACC_RDONLY, H5P_DEFAULT);
   }
-  header();
+  // header();
 
-  // if simulation box does not exist, create it
+  // extract dimensions of simulation volume
+  int dims_buf[3] = { 0, 0, 0}; 
+  h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/DIMENSIONS", dims_buf);
+  std::cout << "dataset dimensions: " << dims_buf[0] << " x " << dims_buf[1] << " x " << dims_buf[2];
+  std::cout << std::endl;
 
+  if (dims_buf[0] > 1) {
+    boxxlo = 0;
+    boxxhi = dims_buf[1];
+  }
+  if (dims_buf[1] > 1) {
+    boxylo = 0;
+    boxyhi = dims_buf[1];
+  }
+  if (dims_buf[2] > 1) {
+    boxzlo = 0;
+    boxzhi = dims_buf[2];
+  }
+
+  // create a simulation box
   if (!domain->box_exist) {
     domain->boxxlo = boxxlo;
     domain->boxylo = boxylo;
@@ -106,76 +124,14 @@ void ReadDream3d::command(int narg, char **arg)
     if (domain->dimension == 3) domain->procs2domain_3d();
   }
 
-  // read rest of file in free format
-  // if add a section keyword, add to header::section_keywords and NSECTIONS
+  // Create sites
 
-  int sitesflag = 0;
-  int neighflag = 0;
-  int valueflag = 0;
-
-  while (strlen(keyword)) {
-    if (strcmp(keyword,"Sites") == 0) {
-      if (app->sites_exist)
-	error->all(FLERR,"Cannot read Sites after sites already exist");
-      sites();
-      sitesflag = 1;
-
-    } else if (strcmp(keyword,"Neighbors") == 0) {
-      if (app->sites_exist) 
-	error->all(FLERR,"Cannot read Neighbors after sites already exist");
-      if (latticeflag == 0) 
-	error->all(FLERR,"Can only read Neighbors for on-lattice applications");
-      if (maxneigh <= 0) 
-	error->all(FLERR,"Cannot read Neighbors unless max neighbors is set");
-      if (sitesflag == 0) error->all(FLERR,"Must read Sites before Neighbors");
-
-      applattice->maxneigh = maxneigh;
-      applattice->grow(app->nlocal);
-      neighbors();
-      neighflag = 1;
-
-    } else if (strcmp(keyword,"Values") == 0) {
-      if (app->sites_exist == 0 && sitesflag == 0) 
-	error->all(FLERR,"Cannot read Values before sites exist or are read");
-      values();
-      valueflag = 1;
-
-    } else {
-      char str[128];
-      sprintf(str,"Unknown identifier in data file: %s",keyword);
-      error->all(FLERR,str);
-    }
-
-    parse_keyword(0);
-  }
-
-  // error checks
-
-  if (sitesflag == 0 && neighflag == 0 && valueflag == 0)
-    error->all(FLERR,"Site file has no Sites, Neighbors, or Values");
-
-  if (app->sites_exist == 0) {
-    if (sitesflag == 0) error->all(FLERR,"No Sites defined in site file");
-    if (latticeflag && neighflag == 0) 
-      error->all(FLERR,"No Neighbors defined in site file");
-    app->sites_exist = 1;
-  }
-
-  // process neighbors to generate ghost sites
-
-  if (neighflag) {
-    CreateSites *cs = new CreateSites(spk);
-    cs->read_sites(applattice);
-    cs->ghosts_from_connectivity(applattice,applattice->delpropensity);
-    applattice->print_connectivity();
-    delete cs;
-  }
+  // Read site values
 
   // close file
-
+  std::cout << "Finished reading dream3d file" << std::endl;
   if (me == 0) {
-    if (compressed) pclose(fp);
-    else fclose(fp);
+    h5_status = H5Fclose(file_id);
   }
 }
 
@@ -595,3 +551,8 @@ void ReadDream3d::open(char *file)
     error->one(FLERR,str);
   }
 }
+
+
+void ReadDream3d::parse_keyword(int) {}
+void ReadDream3d::parse_coeffs(int, char *) {}
+int ReadDream3d::count_words(char *) {}
