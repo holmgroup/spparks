@@ -25,6 +25,8 @@
 #include "error.h"
 #include "memory.h"
 
+#include "input.h"
+
 #include <map>
 
 using namespace SPPARKS_NS;
@@ -107,8 +109,14 @@ void ReadDream3d::command(int narg, char **arg)
   }
 
   // Create sites
+  if (domain->lattice == NULL)
+    error->all(FLERR,"Cannot create sites with undefined lattice");
+  // execute this input-script command to abstract it from the user
+  input->one("create_sites box");
 
   // Read site values
+
+  // Read orientation data
 
   // close file
   std::cout << "Finished reading dream3d file" << std::endl;
