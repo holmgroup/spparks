@@ -34,7 +34,7 @@ class ReadDream3d : protected Pointers {
 
  private:
   int me;
-  char *line,*keyword,*buffer;
+  int *buffer;
   FILE *fp;
   hid_t file_id;
   herr_t h5_status;
@@ -59,7 +59,8 @@ class ReadDream3d : protected Pointers {
   
   int count_words(char *);
 
-  void get_dimensions(hid_t file_id);
+  void get_dimensions();
+  void extract_grain_ids();
 };
 
 }

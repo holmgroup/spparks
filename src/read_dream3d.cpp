@@ -28,6 +28,7 @@
 #include "input.h"
 
 #include <map>
+#include <string>
 
 using namespace SPPARKS_NS;
 
@@ -43,9 +44,7 @@ using namespace SPPARKS_NS;
 ReadDream3d::ReadDream3d(SPPARKS *spk) : Pointers(spk)
 {
   MPI_Comm_rank(world,&me);
-  line = new char[MAXLINE];
-  keyword = new char[MAXLINE];
-  buffer = new char[CHUNK*MAXLINE];
+  buffer = new int[CHUNK*MAXLINE];
   narg = maxarg = 0;
   arg = NULL;
 }
@@ -54,8 +53,6 @@ ReadDream3d::ReadDream3d(SPPARKS *spk) : Pointers(spk)
 
 ReadDream3d::~ReadDream3d()
 {
-  delete [] line;
-  delete [] keyword;
   delete [] buffer;
   memory->sfree(arg);
 }
@@ -90,7 +87,7 @@ void ReadDream3d::command(int narg, char **arg)
   }
    
   // extract dimensions of simulation volume
-  get_dimensions(file_id);
+  get_dimensions();
 
   // create a simulation box
   if (!domain->box_exist) {
@@ -115,6 +112,7 @@ void ReadDream3d::command(int narg, char **arg)
   input->one("create_sites box");
 
   // Read site values
+  extract_grain_ids();
 
   // Read orientation data
 
@@ -123,6 +121,7 @@ void ReadDream3d::command(int narg, char **arg)
   if (me == 0) {
     h5_status = H5Fclose(file_id);
   }
+
 }
 
 /* ----------------------------------------------------------------------
@@ -136,422 +135,39 @@ void ReadDream3d::command(int narg, char **arg)
      else line has first keyword line for rest of file
 ------------------------------------------------------------------------- */
 
-void ReadDream3d::header()
-{
-  int n;
-  char *ptr;
-
-  const char *section_keywords[NSECTIONS] = {"Sites","Neighbors","Values"};
-  
-  // skip 1st line of file
-
-  if (me == 0) {
-    char *eof = fgets(line,MAXLINE,fp);
-    if (eof == NULL) error->one(FLERR,"Unexpected end of data file");
-  }
-
-  // defaults
-
-  maxneigh = 0;
-  boxxlo = boxylo = boxzlo = -0.5;
-  boxxhi = boxyhi = boxzhi = 0.5;
-
-  while (1) {
-
-    // read a line and bcast length
-
-    if (me == 0) {
-      if (fgets(line,MAXLINE,fp) == NULL) n = 0;
-      else n = strlen(line) + 1;
-    }
-    MPI_Bcast(&n,1,MPI_INT,0,world);
-
-    // if n = 0 then end-of-file so return with blank line
-
-    if (n == 0) {
-      line[0] = '\0';
-      return;
-    }
-
-    // bcast line
-
-    MPI_Bcast(line,n,MPI_CHAR,0,world);
-
-    // trim anything from '#' onward
-    // if line is blank, continue
-
-    if (ptr = strchr(line,'#')) *ptr = '\0';
-    if (strspn(line," \t\n\r") == strlen(line)) continue;
-
-    // search line for header keyword and set corresponding variable
-
-    if (strstr(line,"dimension")) {
-      int dimension;
-      sscanf(line,"%d",&dimension);
-      if (domain->box_exist && dimension != domain->dimension)
-	error->all(FLERR,"Data file dimension does not match existing box");
-      domain->dimension = dimension;
-    } else if (strstr(line,"sites")) {
-      tagint nglobal;
-      sscanf(line,TAGINT_FORMAT,&nglobal);
-      if (app->sites_exist && nglobal != app->nglobal)
-	error->all(FLERR,"Data file number of sites "
-		   "does not match existing sites");
-      app->nglobal = nglobal;
-    } else if (strstr(line,"max neighbors")) {
-      sscanf(line,"%d",&maxneigh);
-      if (!latticeflag) 
-	error->all(FLERR,"Off-lattice application data file "
-		   "cannot have maxneigh setting");
-      if (app->sites_exist && maxneigh != applattice->maxneigh)
-	error->all(FLERR,
-		   "Data file maxneigh setting does not match existing sites");
-    } else if (strstr(line,"xlo xhi")) {
-      sscanf(line,"%lg %lg",&boxxlo,&boxxhi);
-      if (domain->box_exist && (fabs(domain->boxxlo-boxxlo) > EPSILON ||
-				fabs(domain->boxxhi-boxxhi) > EPSILON))
-	  error->all(FLERR,
-		     "Data file simluation box different that current box");
-    } else if (strstr(line,"ylo yhi")) {
-      sscanf(line,"%lg %lg",&boxylo,&boxyhi);
-      if (domain->box_exist && (fabs(domain->boxylo-boxylo) > EPSILON ||
-				fabs(domain->boxyhi-boxyhi) > EPSILON))
-	  error->all(FLERR,
-		     "Data file simluation box different that current box");
-    } else if (strstr(line,"zlo zhi")) {
-      sscanf(line,"%lg %lg",&boxzlo,&boxzhi);
-      if (domain->box_exist && (fabs(domain->boxzlo-boxzlo) > EPSILON ||
-				fabs(domain->boxzhi-boxzhi) > EPSILON))
-	  error->all(FLERR,
-		     "Data file simluation box different that current box");
-    } else break;
-  }
-
-  // error check on total system size
-
-  if (app->nglobal < 0 || app->nglobal > MAXTAGINT)
-    error->all(FLERR,"System in site file is too big");
-
-  // check that exiting string is a valid section keyword
-
-  parse_keyword(1);
-  for (n = 0; n < NSECTIONS; n++)
-    if (strcmp(keyword,section_keywords[n]) == 0) break;
-  if (n == NSECTIONS) {
-    char str[128];
-    sprintf(str,"Unknown identifier in data file: %s",keyword);
-    error->all(FLERR,str);
-  }
-}
+void ReadDream3d::header(){}
 
 /* ----------------------------------------------------------------------
    read all sites
 ------------------------------------------------------------------------- */
 
-void ReadDream3d::sites()
-{
-  int i,m,nchunk,id;
-  double x,y,z;
-  char *values[4];
-  char *next,*buf;
-
-  double subxlo = domain->subxlo;
-  double subylo = domain->subylo;
-  double subzlo = domain->subzlo;
-  double subxhi = domain->subxhi;
-  double subyhi = domain->subyhi;
-  double subzhi = domain->subzhi;
-
-  // read and broadcast one CHUNK of lines at a time
-  // add a site if I own its coords
-
-  tagint nread = 0;
-  tagint nglobal = app->nglobal;
-
-  while (nread < nglobal) {
-    if (nglobal-nread > CHUNK) nchunk = CHUNK;
-    else nchunk = nglobal-nread;
-    if (me == 0) {
-      char *eof;
-      m = 0;
-      for (i = 0; i < nchunk; i++) {
-	eof = fgets(&buffer[m],MAXLINE,fp);
-	if (eof == NULL) error->one(FLERR,"Unexpected end of data file");
-	m += strlen(&buffer[m]);
-      }
-      m++;
-    }
-    MPI_Bcast(&m,1,MPI_INT,0,world);
-    MPI_Bcast(buffer,m,MPI_CHAR,0,world);
-
-    buf = buffer;
-    next = strchr(buf,'\n');
-    *next = '\0';
-    int nwords = count_words(buf);
-    *next = '\n';
-
-    if (nwords != 4) error->all(FLERR,"Incorrect site format in data file");
-
-    for (int i = 0; i < nchunk; i++) {
-      next = strchr(buf,'\n');
-
-      values[0] = strtok(buf," \t\n\r\f");
-      values[1] = strtok(NULL," \t\n\r\f");
-      values[2] = strtok(NULL," \t\n\r\f");
-      values[3] = strtok(NULL," \t\n\r\f");
-
-      id = ATOTAGINT(values[0]);
-      x = atof(values[1]);
-      y = atof(values[2]);
-      z = atof(values[3]);
-      
-      if (x >= subxlo && x < subxhi &&
-	  y >= subylo && y < subyhi &&
-	  z >= subzlo && z < subzhi) {
-	if (latticeflag) applattice->add_site(id,x,y,z);
-	else appoff->add_site(id,x,y,z);
-      }
-
-      buf = next + 1;
-    }
-
-    nread += nchunk;
-  }
-
-  // check that all sites were assigned correctly
-
-  tagint tmp = app->nlocal;
-  MPI_Allreduce(&tmp,&nglobal,1,MPI_INT,MPI_SUM,world);
-
-  if (me == 0) {
-    if (screen) fprintf(screen,"  " TAGINT_FORMAT " sites\n",nglobal);
-    if (logfile) fprintf(logfile,"  " TAGINT_FORMAT " sites\n",nglobal);
-  }
-
-  if (nglobal != app->nglobal) 
-    error->all(FLERR,"Did not assign all sites correctly");
-  
-  // check that sites IDs range from 1 to nglobal
-  // not checking if site IDs are unique
-  
-  int flag = 0;
-  for (int i = 0; i < app->nlocal; i++)
-    if (app->id[i] <= 0 || app->id[i] > nglobal) flag = 1;
-  int flag_all;
-  MPI_Allreduce(&flag,&flag_all,1,MPI_INT,MPI_SUM,world);
-  if (flag_all)
-    error->all(FLERR,"Invalid site ID in Sites section of data file");
-}
-
-/* ----------------------------------------------------------------------
-   read all neighbors of sites
-   to find atoms, must build atom map if not a molecular system 
-------------------------------------------------------------------------- */
-
-void ReadDream3d::neighbors()
-{
-  int i,m,nchunk,nvalues;
-  tagint idone;
-  char *next,*buf;
-
-  // put my entire list of owned site IDs in a hash
-
-  std::map<tagint,int>::iterator loc;
-  std::map<tagint,int> hash;
-
-  tagint *id = app->id;
-  int nlocal = app->nlocal;
-
-  for (i = 0; i < nlocal; i++)
-    hash.insert(std::pair<tagint,int> (id[i],i));
-
-  // read and broadcast one CHUNK of lines at a time
-  // store site's neighbors if I own its ID
-
-  char **values = new char*[maxneigh+1];
-
-  tagint nread = 0;
-  tagint nglobal = app->nglobal;
-
-  while (nread < nglobal) {
-    if (nglobal-nread > CHUNK) nchunk = CHUNK;
-    else nchunk = nglobal-nread;
-    if (me == 0) {
-      char *eof;
-      m = 0;
-      for (i = 0; i < nchunk; i++) {
-	eof = fgets(&buffer[m],MAXLINE,fp);
-	if (eof == NULL) error->one(FLERR,"Unexpected end of data file");
-	m += strlen(&buffer[m]);
-      }
-      m++;
-    }
-    MPI_Bcast(&m,1,MPI_INT,0,world);
-    MPI_Bcast(buffer,m,MPI_CHAR,0,world);
-
-    buf = buffer;
-    for (int i = 0; i < nchunk; i++) {
-      next = strchr(buf,'\n');
-      *next = '\0';
-
-      idone = ATOTAGINT(strtok(buf," \t\n\r\f"));
-      loc = hash.find(idone);
-
-      if (loc != hash.end()) {
-	nvalues = 0;
-	while (nvalues <= maxneigh) {
-	  values[nvalues] = strtok(NULL," \t\n\r\f");
-	  if (values[nvalues] == NULL) break;
-	  nvalues++;
-	}
-
-	if (nvalues > maxneigh) error->one(FLERR,"Too many neighbors per site");
-	applattice->add_neighbors(loc->second,nvalues,values);
-      }
-
-      buf = next + 1;
-    }
-
-    nread += nchunk;
-  }
-
-  delete [] values;
-
-  bigint ncount = 0;
-  for (i = 0; i < app->nlocal; i++)
-    ncount += applattice->numneigh[i];
-  bigint ntotal;
-  MPI_Allreduce(&ncount,&ntotal,1,MPI_SPK_BIGINT,MPI_SUM,world);
-
-  if (me == 0) {
-    if (screen) fprintf(screen,"  " BIGINT_FORMAT " neighbors\n",ntotal);
-    if (logfile) fprintf(logfile,"  " BIGINT_FORMAT " neighbors\n",ntotal);
-  }
-}
+void ReadDream3d::sites(){}
 
 /* ----------------------------------------------------------------------
    read all per-site values
    to find atoms, must build atom map if not a molecular system 
 ------------------------------------------------------------------------- */
 
-void ReadDream3d::values()
-{
-  int i,m,nchunk;
-  tagint idone;
-  char *next,*buf;
-
-  // put my entire list of owned site IDs in a hash
-
-  std::map<tagint,int>::iterator loc;
-  std::map<tagint,int> hash;
-
-  tagint *id = app->id;
-  int nlocal = app->nlocal;
-
-  for (i = 0; i < nlocal; i++)
-    hash.insert(std::pair<tagint,int> (id[i],i));
-
-  // read and broadcast one CHUNK of lines at a time
-  // store site's values if I own its ID
-
-  int nvalues = app->ninteger + app->ndouble;
-  char **values = new char*[nvalues];
-
-  tagint nread = 0;
-  tagint nglobal = app->nglobal;
-
-  while (nread < nglobal) {
-    if (nglobal-nread > CHUNK) nchunk = CHUNK;
-    else nchunk = nglobal-nread;
-    if (me == 0) {
-      char *eof;
-      m = 0;
-      for (i = 0; i < nchunk; i++) {
-	eof = fgets(&buffer[m],MAXLINE,fp);
-	if (eof == NULL) error->one(FLERR,"Unexpected end of data file");
-	m += strlen(&buffer[m]);
-      }
-      m++;
-    }
-    MPI_Bcast(&m,1,MPI_INT,0,world);
-    MPI_Bcast(buffer,m,MPI_CHAR,0,world);
-
-    buf = buffer;
-    next = strchr(buf,'\n');
-    *next = '\0';
-    int nwords = count_words(buf);
-    *next = '\n';
-
-    if (nwords != nvalues+1) 
-      error->all(FLERR,"Incorrect value format in data file");
-
-    for (int i = 0; i < nchunk; i++) {
-      next = strchr(buf,'\n');
-
-      idone = ATOTAGINT(strtok(buf," \t\n\r\f"));
-      loc = hash.find(idone);
-
-      if (loc != hash.end()) {
-	for (m = 0; m < nvalues; m++) values[m] = strtok(NULL," \t\n\r\f");
-	if (latticeflag) applattice->add_values(loc->second,values);
-	else appoff->add_values(loc->second,values);
-      }
-
-      buf = next + 1;
-    }
-
-    nread += nchunk;
-  }
-
-  delete [] values;
-
-  bigint nbig = nglobal;
-  if (me == 0) {
-    if (screen) fprintf(screen,"  " BIGINT_FORMAT " values\n",
-			nbig*nvalues);
-    if (logfile) fprintf(logfile,"  " BIGINT_FORMAT " values\n",
-			 nbig*nvalues);
-  }
-}
+void ReadDream3d::values(){}
 
 /* ----------------------------------------------------------------------
    proc 0 opens data file
    test if gzipped
 ------------------------------------------------------------------------- */
 
-void ReadDream3d::open(char *file)
-{
-  compressed = 0;
-  char *suffix = file + strlen(file) - 3;
-  if (suffix > file && strcmp(suffix,".gz") == 0) compressed = 1;
-  if (!compressed) fp = fopen(file,"r");
-  else {
-#ifdef LAMMPS_GZIP
-    char gunzip[128];
-    sprintf(gunzip,"gunzip -c %s",file);
-    fp = popen(gunzip,"r");
-#else
-    error->one(FLERR,"Cannot open gzipped file");
-#endif
-  }
-
-  if (fp == NULL) {
-    char str[128];
-    sprintf(str,"Cannot open file %s",file);
-    error->one(FLERR,str);
-  }
-}
-
-
+void ReadDream3d::open(char *file){}
 void ReadDream3d::parse_keyword(int) {}
 void ReadDream3d::parse_coeffs(int, char *) {}
 int ReadDream3d::count_words(char *) {}
 
-void ReadDream3d::get_dimensions(hid_t file_id) {
+void ReadDream3d::get_dimensions() {
   int dims_buf[3] = {0, 0, 0};
   h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/DIMENSIONS", dims_buf);
   std::cout << "dataset dimensions: " << dims_buf[0] << " x " << dims_buf[1] << " x " << dims_buf[2];
   std::cout << std::endl;
+
+  boxxlo = boxylo = boxzlo = -0.5;
+  boxxhi = boxyhi = boxzhi = 0.5;
 
   if (dims_buf[0] > 1) {
     boxxlo = 0;
@@ -565,5 +181,90 @@ void ReadDream3d::get_dimensions(hid_t file_id) {
     boxzlo = 0;
     boxzhi = dims_buf[2];
   }
+  return;
+}
+
+void ReadDream3d::extract_grain_ids() {
+
+  int* data = NULL;
+  if (me == 0) {
+    data = new int[app->nglobal];
+    // assuming SPPARKS and DREAM3D both use row-major indexing, GrainIds are indexed by global_id
+    h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/CELL_DATA/GrainIds",data);
+  }
+
+  int i,m,nchunk;
+  tagint site_id;
+  char *next;;
+  int *buf;
+
+  // put my entire list of owned site IDs in a hashmap
+
+  std::map<tagint,int>::iterator loc;
+  std::map<tagint,int> hash;
+
+  tagint *id = app->id;
+  int nlocal = app->nlocal;
+
+  for (i = 0; i < nlocal; i++)
+    hash.insert(std::pair<tagint,int> (id[i],i));
+
+  // broadcast one CHUNK of values at a time
+  // store site's values if I own its ID
+
+  int nvalues = app->ninteger + app->ndouble;
+  if (nvalues != 1)
+    error->all(FLERR, "read_dream3d implemented only for apps with 1 INT per site.");
+  char **values = new char*[nvalues];
+
+  tagint nread = 0;
+  tagint nglobal = app->nglobal;
+
+  while (nread < nglobal) {
+    if (nglobal-nread > CHUNK) nchunk = CHUNK;
+    else nchunk = nglobal-nread;
+    if (me == 0) {
+      m = 0;
+      for (i = 0; i < nchunk; i++) {
+	// hard-coded single integer per site...
+	buffer[m] = data[nread+m];
+	m++;
+      }
+      // m++;
+    }
+    MPI_Bcast(&m,1,MPI_INT,0,world);
+    MPI_Bcast(buffer,m,MPI_INT,0,world);
+
+    buf = buffer;
+
+    for (int idx = 0; idx < nchunk; idx++) {
+      // site id starts at 1
+      site_id = nread + idx + 1;
+      loc = hash.find(site_id);
+
+      if (loc != hash.end()) {
+	for (m = 0; m < nvalues; m++) {
+	  values[m] = new char[256];
+	  sprintf(values[m], "%d", buf[idx]);
+	  // std::cout << buf[i*nvalues+m] << " " << values[m] << std::endl;
+	}
+	if (latticeflag) applattice->add_values(loc->second,values);
+	else appoff->add_values(loc->second,values);
+      }
+    }
+
+    nread += nchunk;
+  }
+  for (i=0; i < nvalues; i++) delete [] values[i];
+  delete [] values;
+
+  bigint nbig = nglobal;
+  if (me == 0) {
+    if (screen) fprintf(screen,"  " BIGINT_FORMAT " values\n",
+			nbig*nvalues);
+    if (logfile) fprintf(logfile,"  " BIGINT_FORMAT " values\n",
+			 nbig*nvalues);
+  }
+  delete [] data;
   return;
 }
