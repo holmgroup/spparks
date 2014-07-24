@@ -20,9 +20,12 @@ CommandStyle(read_dream3d,ReadDream3d)
 #define SPK_READ_DREAM3D_H
 
 #include "pointers.h"
+
+#ifdef SPPARKS_HDF5
 // #include "hdf5.h"
 #include "H5Cpp.h"
 #include "hdf5_hl.h"
+#endif
 
 namespace SPPARKS_NS {
 
@@ -35,8 +38,10 @@ class ReadDream3d : protected Pointers {
  private:
   int me;
   int *buffer;
+#ifdef SPPARKS_HDF5
   hid_t file_id;
   herr_t h5_status;
+#endif
   int narg,maxarg,compressed;
   char **arg;
 

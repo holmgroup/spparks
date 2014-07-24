@@ -82,8 +82,12 @@ void ReadDream3d::command(int narg, char **arg)
   // proc 0 opens the dream3d file
   if (me == 0) {
     if (screen) fprintf(screen,"Reading dream3d file ...\n");
+#ifdef SPPARKS_HDF5
     // make sure the file exists first
     file_id = H5Fopen(arg[0], H5F_ACC_RDONLY, H5P_DEFAULT);
+#else
+    error->all(FLERR,"Compile with HDF5 and set SPPARKS_HDF5 to read dream3d files.");
+#endif
   }
    
   // extract dimensions of simulation volume
@@ -118,15 +122,18 @@ void ReadDream3d::command(int narg, char **arg)
 
   // close file
   std::cout << "Finished reading dream3d file" << std::endl;
+#ifdef SPPARKS_HDF5
   if (me == 0) {
     h5_status = H5Fclose(file_id);
   }
-
+#endif
 }
 
 void ReadDream3d::get_dimensions() {
   int dims_buf[3] = {0, 0, 0};
+#ifdef SPPARKS_HDF5
   h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/DIMENSIONS", dims_buf);
+#endif
   std::cout << "dataset dimensions: " << dims_buf[0] << " x " << dims_buf[1] << " x " << dims_buf[2];
   std::cout << std::endl;
 
@@ -151,11 +158,13 @@ void ReadDream3d::get_dimensions() {
 void ReadDream3d::extract_grain_ids() {
 
   int* data = NULL;
+#ifdef SPPARKS_HDF5
   if (me == 0) {
     data = new int[app->nglobal];
     // assuming SPPARKS and DREAM3D both use row-major indexing, GrainIds are indexed by global_id
     h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/CELL_DATA/GrainIds",data);
   }
+#endif
 
   int i,m,nchunk;
   tagint site_id;
