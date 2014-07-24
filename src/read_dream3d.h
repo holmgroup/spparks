@@ -35,7 +35,6 @@ class ReadDream3d : protected Pointers {
  private:
   int me;
   int *buffer;
-  FILE *fp;
   hid_t file_id;
   herr_t h5_status;
   int narg,maxarg,compressed;
@@ -47,17 +46,6 @@ class ReadDream3d : protected Pointers {
 
   int maxneigh;
   double boxxlo,boxxhi,boxylo,boxyhi,boxzlo,boxzhi;
-
-  void open(char *);
-  void header();
-  void parse_keyword(int);
-  void parse_coeffs(int, char *);
-
-  void sites();
-  void neighbors();
-  void values();
-  
-  int count_words(char *);
 
   void get_dimensions();
   void extract_grain_ids();

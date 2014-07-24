@@ -124,42 +124,6 @@ void ReadDream3d::command(int narg, char **arg)
 
 }
 
-/* ----------------------------------------------------------------------
-   read free-format header of data file
-   if flag = 0, only called by proc 0
-   if flag = 1, called by all procs so bcast lines as read them
-   1st line and blank lines are skipped
-   non-blank lines are checked for header keywords and leading value is read
-   header ends with EOF or non-blank line containing no header keyword
-     if EOF, line is set to blank line
-     else line has first keyword line for rest of file
-------------------------------------------------------------------------- */
-
-void ReadDream3d::header(){}
-
-/* ----------------------------------------------------------------------
-   read all sites
-------------------------------------------------------------------------- */
-
-void ReadDream3d::sites(){}
-
-/* ----------------------------------------------------------------------
-   read all per-site values
-   to find atoms, must build atom map if not a molecular system 
-------------------------------------------------------------------------- */
-
-void ReadDream3d::values(){}
-
-/* ----------------------------------------------------------------------
-   proc 0 opens data file
-   test if gzipped
-------------------------------------------------------------------------- */
-
-void ReadDream3d::open(char *file){}
-void ReadDream3d::parse_keyword(int) {}
-void ReadDream3d::parse_coeffs(int, char *) {}
-int ReadDream3d::count_words(char *) {}
-
 void ReadDream3d::get_dimensions() {
   int dims_buf[3] = {0, 0, 0};
   h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/DIMENSIONS", dims_buf);
@@ -216,6 +180,8 @@ void ReadDream3d::extract_grain_ids() {
   if (nvalues != 1)
     error->all(FLERR, "read_dream3d implemented only for apps with 1 INT per site.");
   char **values = new char*[nvalues];
+  for (i=0; i < nvalues; i++)
+    values[m] = new char[256];
 
   tagint nread = 0;
   tagint nglobal = app->nglobal;
@@ -244,7 +210,6 @@ void ReadDream3d::extract_grain_ids() {
 
       if (loc != hash.end()) {
 	for (m = 0; m < nvalues; m++) {
-	  values[m] = new char[256];
 	  sprintf(values[m], "%d", buf[idx]);
 	  // std::cout << buf[i*nvalues+m] << " " << values[m] << std::endl;
 	}
