@@ -11,682 +11,525 @@
    See the README file in the top-level SPPARKS directory.
 ------------------------------------------------------------------------- */
 
-#include "spktype.h"
 #include "mpi.h"
-#include "string.h"
+#include "math.h"
+#include "ctype.h"
 #include "stdlib.h"
+#include "string.h"
 #include "dump_dream3d.h"
+#include "image.h"
 #include "app.h"
 #include "app_lattice.h"
-#include "app_off_lattice.h"
 #include "domain.h"
-#include "region.h"
-#include "memory.h"
+#include "lattice.h"
+#include "input.h"
+#include "variable.h"
+#include "random_park.h"
+#include "random_mars.h"
+#include "math_const.h"
 #include "error.h"
+#include "memory.h"
 
-#include <iostream>
+#ifdef SPPARKS_HDF5
+#include "H5Cpp.h"
+#include "hdf5_hl.h"
+#endif
 
 using namespace SPPARKS_NS;
+using namespace MathConst;
 
-// customize by adding keyword to 1st enum
+enum{DREAM3D,PLAIN_H5};
+enum{PARALLEL,SERIAL};
+enum{NUMERIC,IATTRIBUTE,DATTRIBUTE};
+enum{STATIC,DYNAMIC};
+enum{NO,YES};
+enum{ID,SITE,X,Y,Z,ENERGY,PROPENSITY,IARRAY,DARRAY};  // also in dump_text
+enum{INT,DOUBLE,BIGINT};                              // also in dump_text
 
-enum{ID,SITE,X,Y,Z,ENERGY,PROPENSITY,IARRAY,DARRAY};  // also in dump_image
-enum{LT,LE,GT,GE,EQ,NEQ};
-enum{INT,DOUBLE,TAGINT};           // also in dump_image
 
-#define MAXLINE 1024
+enum{SPHERE,SQUARE}; // to be removed
+enum{JPG,PPM};
 
 /* ---------------------------------------------------------------------- */
 
-DumpDream3d::DumpDream3d(SPPARKS *spk, int narg, char **arg) : Dump(spk, narg, arg)
+DumpDream3d::DumpDream3d(SPPARKS *spk, int narg, char **arg) :
+  DumpText(spk, narg, arg)
 {
-  // allow for default "id site x y z" output if no args specified
-  std::cout << "hello from DumpDream3d\n";
-  int def = 0;
-  char **argcopy;
-  
-  if (narg == 4) {
-    def = 1;
-    narg = 9;
-    argcopy = new char*[narg];
-    argcopy[4] = (char *) "id";
-    argcopy[5] = new char[6];
-    strcpy(argcopy[5],"site");
-    argcopy[6] = (char *) "x";
-    argcopy[7] = (char *) "y";
-    argcopy[8] = (char *) "z";
-  } else argcopy = arg;
+  if (binary || multiproc) error->all(FLERR,"Invalid dump dream3d filename");
 
-  // size_one may be shrunk below if additional optional args exist
+  // set filetype based on filename suffix
 
-  size_one = narg - 4;
-  vtype = new int[size_one];
-  vindex = new int[size_one];
-  vformat = new char*[size_one];
-  pack_choice = new FnPtrPack[size_one];
+  int n = strlen(filename);
+  if (strlen(filename) > 4 && strcmp(&filename[n-4],".dream3d") == 0)
+    filetype = DREAM3D;
+  else if (strlen(filename) > 5 && strcmp(&filename[n-5],".h5") == 0)
+    filetype = PLAIN_H5;
+  else filetype = DREAM3D;
 
-  // process attributes
-  // ioptional = start of additional optional args
-  // only dump image style processes optional args
+#ifndef SPPARKS_HDF5
+  error->all(FLERR,"Cannot dump dream3d file without HDF5 support");
+#endif
 
-  ioptional = parse_fields(narg,argcopy);
+  // site color,diameter settings
 
-  if (ioptional < narg && strcmp(style,"image") != 0)
-    error->all(FLERR,"Invalid attribute in dump text command");
-  size_one = ioptional - 4;
+  // if (size_one != 2) error->all(FLERR,"Illegal dump dream3d command");
 
-  // setup vformat strings, one per field
+  if (vtype[0] == INT) scolor = IATTRIBUTE;
+  else scolor = DATTRIBUTE;
 
-  for (int i = 0; i < size_one; i++) {
-    char *format;
-    if (vtype[i] == INT) format = (char *) "%d ";
-    else if (vtype[i] == DOUBLE) format = (char *) "%g ";
-    else if (vtype[i] == TAGINT) format = (char *) TAGINT_FORMAT " ";
-    int n = strlen(format) + 1;
-    vformat[i] = new char[n];
-    strcpy(vformat[i],format);
+  if (vtype[1] == INT) sdiam = IATTRIBUTE;
+  else sdiam = DATTRIBUTE;
+
+  // create Image class
+
+  image = new Image(spk);
+
+  // set defaults for optional args
+  write_style = SERIAL;
+  shape = SPHERE;
+  boundflag = NO;
+  crange = drange = NO;
+  thetastr = phistr = NULL;
+  cflag = STATIC;
+  cx = cy = cz = 0.5;
+  cxstr = cystr = czstr = NULL;
+
+  if (domain->dimension == 3) {
+    image->up[0] = 0.0; image->up[1] = 0.0; image->up[2] = 1.0;
+  } else if (domain->dimension == 2) {
+    image->up[0] = 0.0; image->up[1] = 1.0; image->up[2] = 0.0;
+  } else if (domain->dimension == 1) {
+    image->up[0] = 1.0; image->up[1] = 0.0; image->up[2] = 0.0;
   }
 
-  // setup column string
-  // change "site" to "type" to be LAMMPS compatible
+  upxstr = upystr = upzstr = NULL;
+  zoomstr = NULL;
+  perspstr = NULL;
+  boxflag = YES;
+  boxdiam = 0.02;
+  axesflag = NO;
 
-  int n = 0;
-  for (int iarg = 4; iarg < narg; iarg++) n += strlen(argcopy[iarg]) + 2;
-  columns = new char[n];
-  columns[0] = '\0';
-  for (int iarg = 4; iarg < narg; iarg++) {
-    if (strstr(argcopy[iarg],"site")) strcat(columns,"type");
-    else strcat(columns,argcopy[iarg]);
-    strcat(columns," ");
+  // parse optional args
+
+  int iarg = ioptional;
+  while (iarg < narg) {
+    if (strcmp(arg[iarg],"write_style") == 1) {
+      if (iarg+1 > narg) error->all(FLERR,"Illegal dump dream3d command");
+      if (strcmp(arg[iarg+1],"parallel") == 0) write_style = PARALLEL;
+      else if (strcmp(arg[iarg+1],"serial") == 0) write_style = SERIAL;
+      iarg += 2;
+    } else error->all(FLERR,"Illegal dump image command");
   }
 
-  // delete argcopy if default output created
+  // error checks
 
-  if (def) {
-    delete [] argcopy[5];
-    delete [] argcopy;
-  }
+  if (app->appclass != App::LATTICE)
+    error->all(FLERR,"Dump dream3d requires lattice app");
+  applattice = (AppLattice *) app;
 
-  // dump params
 
-  iregion = -1;
-  idregion = NULL;
+  // allocate image buffer now that image size is known
+  image->buffers();
 
-  nthresh = 0;
-  thresh_array = NULL;
-  thresh_op = NULL;
-  thresh_value = NULL;
-  thresh_index = NULL;
-
-  maxlocal = 0;
-  choose = NULL;
-  dchoose = NULL;
-  clist = NULL;
-
-  // setup function ptrs
-
-  if (binary) header_choice = &DumpDream3d::header_binary;
-  else header_choice = &DumpDream3d::header_text;
-
-  if (binary) write_choice = &DumpDream3d::write_binary;
-  else write_choice = &DumpDream3d::write_text;
 }
 
 /* ---------------------------------------------------------------------- */
 
 DumpDream3d::~DumpDream3d()
 {
-  delete [] columns;
+  delete image;
 
-  delete [] idregion;
-  memory->sfree(thresh_array);
-  memory->sfree(thresh_op);
-  memory->sfree(thresh_value);
-  memory->sfree(thresh_index);
-
-  memory->sfree(choose);
-  memory->sfree(dchoose);
-  memory->sfree(clist);
-
-  delete [] vtype;
-  delete [] vindex;
-  for (int i = 0; i < size_one; i++) delete [] vformat[i];
-  delete [] vformat;
-  delete [] pack_choice;
+  memory->destroy(diamattribute);
+  if (colorattribute) {
+    for (int i = clo; i <= chi; i++)
+      if (color_memflag[i-clo]) delete [] colorattribute[i-clo];
+    memory->sfree(colorattribute);
+  }
+  memory->destroy(color_memflag);
 }
 
 /* ---------------------------------------------------------------------- */
 
 void DumpDream3d::init_style()
 {
-  // error if propensity is dumped or used as threshold but doesn't exist
-  // can't check until now, b/c input script may not have defined solver
+  if (multifile == 0) error->all(FLERR,"Dump dream3d requires one snapshot per file");
 
-  int flag = 0;
-  for (int i = 0; i < size_one; i++)
-    if (pack_choice[i] == &DumpDream3d::pack_propensity) flag = 1;
-  for (int i = 0; i < nthresh; i++)
-    if (thresh_array[i] == PROPENSITY) flag = 1;
-  if (flag && !solve)
-    error->all(FLERR,"Dump requires propensity but no KMC solve performed");
+  // keep this here for consistency, though it's probably superfluous to DumpDream3d
+  DumpText::init_style();
 
-  // set index and check validity of region
-
-  if (iregion >= 0) {
-    iregion = domain->find_region(idregion);
-    if (iregion == -1) error->all(FLERR,"Region ID for dump text does not exist");
-  }
-
-  // open single file, one time only
-
-  if (multifile == 0) openfile();
+  // check variables
+  // no variables for DumpDream3d right now...
 }
 
 /* ---------------------------------------------------------------------- */
 
-int DumpDream3d::count()
+void DumpDream3d::write(double time) {
+  // open new file
+  create_dream3d_file();
+  idump++;
+
+  // nme = # of atoms this proc will contribute to dump
+  // pack buf with x,y,z,color,diameter
+  // set minmax color range if using color map
+  // create my portion of image for my particles
+  
+  int nme = count();
+
+  if (nme > maxbuf) {
+    maxbuf = nme;
+    memory->destroy(buf);
+    memory->create(buf,maxbuf*size_one,"dump:buf");
+  }
+
+  pack();
+  if (scolor == DATTRIBUTE) image->color_minmax(nchoose,buf,size_one);
+
+  // create image on each proc, then merge them
+
+  image->clear();
+  create_image();
+  image->merge();
+
+  // write image file
+
+  if (me == 0) {
+    if (filetype == JPG) image->write_JPG(fp);
+    else image->write_PPM(fp);
+    fclose(fp);
+  }
+}
+
+void DumpDream3d::create_dream3d_file() {
+  std::cout << "test\n";
+  std::cout << filename;
+}
+
+/* ----------------------------------------------------------------------
+   reset view parameters
+   called once from constructor if view is STATIC
+   called every snapshot from write() if view is DYNAMIC
+------------------------------------------------------------------------- */
+
+void DumpDream3d::box_center(){}
+
+/* ----------------------------------------------------------------------
+   create image for atoms on this proc
+   every pixel has depth 
+------------------------------------------------------------------------- */
+
+void DumpDream3d::create_image()
 {
-  int i;
+  int i,j,m,n,ivalue;
+  double diameter;
+  double *color;
 
-  // grow choose arrays if needed
+  // render my sites
 
-  int nlocal = app->nlocal;
-  if (nlocal > maxlocal) {
-    maxlocal = nlocal;
+  double **xyz = app->xyz;
 
-    memory->sfree(choose);
-    memory->sfree(dchoose);
-    memory->sfree(clist);
-    choose = (int *) memory->smalloc(maxlocal*sizeof(int),"dump:choose");
-    dchoose = (double *) 
-      memory->smalloc(maxlocal*sizeof(double),"dump:dchoose");
-    clist = (int *) memory->smalloc(maxlocal*sizeof(int),"dump:clist");
+  m = 0;
+  for (i = 0; i < nchoose; i++) {
+    j = clist[i];
+    
+    if (scolor == IATTRIBUTE) {
+      ivalue = static_cast<int> (buf[m]);
+      ivalue = MAX(ivalue,clo);
+      ivalue = MIN(ivalue,chi);
+      color = colorattribute[ivalue-clo];
+    } else if (scolor == DATTRIBUTE) {
+      color = image->value2color(buf[m]);
+    }
+
+    if (sdiam == NUMERIC) {
+      diameter = sdiamvalue;
+    } else if (sdiam == IATTRIBUTE) {
+      ivalue = static_cast<int> (buf[m+1]);
+      ivalue = MAX(ivalue,dlo);
+      ivalue = MIN(ivalue,dhi);
+      diameter = diamattribute[ivalue-dlo];
+    } else if (sdiam == DATTRIBUTE) {
+      diameter = buf[m+1];
+    }
+
+    if (shape == SPHERE) image->draw_sphere(xyz[j],color,diameter);
+    else image->draw_cube(xyz[j],color,diameter);
+
+    m += size_one;
   }
 
-  // choose all local sites for output
+  // render my boundaries bewteen adjacent sites
+  // loop over all chosen sites and all their neighbors
+  // neighbor does not have to be chosen site
+  // if 2 sites do not share adjacent face, do not draw boundary
+  // if 2 sites have same value, do not draw boundary
 
-  for (i = 0; i < nlocal; i++) choose[i] = 1;
+  if (boundflag == YES) {
+    int k,flag;
+    double c1[3],c2[3],c3[4],c4[4];
+    int dimension = domain->dimension;
+    double dx = domain->lattice->xlattice;
+    double dy = domain->lattice->ylattice;
+    double dz = domain->lattice->zlattice;
+    int *numneigh = applattice->numneigh;
+    int **neighbor = applattice->neighbor;
+    tagint *id = app->id;
+    int **iarray = app->iarray;
+    double **darray = app->darray;
 
-  // un-choose if not in region
+    for (int ii = 0; ii < nchoose; ii++) {
+      i = clist[ii];
+      for (int jj = 0; jj < numneigh[i]; jj++) {
+	j = neighbor[i][jj];
+	if (boundvalue == ID) {
+	  if (id[i] == id[j]) continue;
+	} else if (boundvalue == IARRAY) {
+	  if (iarray[boundindex][i] == iarray[boundindex][j]) continue;
+	} else if (boundvalue == DARRAY) {
+	  if (darray[boundindex][i] == darray[boundindex][j]) continue;
+	} else if (boundvalue == X) {
+	  if (xyz[i][0] == xyz[j][0]) continue;
+	} else if (boundvalue == Y) {
+	  if (xyz[i][1] == xyz[j][1]) continue;
+	} else if (boundvalue == Z) {
+	  if (xyz[i][2] == xyz[j][2]) continue;
+	}
 
-  if (iregion >= 0) {
-    Region *region = domain->regions[iregion];
-    double **xyz = app->xyz;
-    for (i = 0; i < nlocal; i++)
-      if (choose[i] && region->match(xyz[i][0],xyz[i][1],xyz[i][2]) == 0) 
-	choose[i] = 0;
-  }
+	flag = 0;
+	if (xyz[i][0] != xyz[j][0]) flag++;
+	if (xyz[i][1] != xyz[j][1]) flag++;
+	if (xyz[i][2] != xyz[j][2]) flag++;
+	if (flag >= 2) continue;
 
-  // un-choose if any threshhold criterion isn't met
-
-  if (nthresh) {
-    double *ptr;
-    double value;
-    int nstride;
-
-    for (int ithresh = 0; ithresh < nthresh; ithresh++) {
-
-      if (thresh_array[ithresh] == ID) {
-	tagint *id = app->id;
-	for (i = 0; i < nlocal; i++) dchoose[i] = id[i];
-	ptr = dchoose;
-	nstride = 1;
-      } else if (thresh_array[ithresh] == SITE) {
-	int *site = app->iarray[0];
-	for (i = 0; i < nlocal; i++) dchoose[i] = site[i];
-	ptr = dchoose;
-	nstride = 1;
-      } else if (thresh_array[ithresh] == X) {
-	ptr = &app->xyz[0][0];
-	nstride = 3;
-      } else if (thresh_array[ithresh] == Y) {
-	ptr = &app->xyz[0][1];
-	nstride = 3;
-      } else if (thresh_array[ithresh] == Z) {
-	ptr = &app->xyz[0][2];
-	nstride = 3;
-      } else if (thresh_array[ithresh] == ENERGY) {
-	if (latticeflag)
-	  for (i = 0; i < nlocal; i++)
-	    dchoose[i] = applattice->site_energy(i);
-	else
-	  for (i = 0; i < nlocal; i++)
-	    dchoose[i] = appoff->site_energy(i);
-	ptr = dchoose;
-	nstride = 1;
-      } else if (thresh_array[ithresh] == PROPENSITY) {
-	if (latticeflag)
-	  for (i = 0; i < nlocal; i++)
-	    dchoose[i] = applattice->site_propensity(i);
-	else
-	  for (i = 0; i < nlocal; i++)
-	    dchoose[i] = appoff->site_propensity(i);
-	ptr = dchoose;
-	nstride = 1;
-      } else if (thresh_array[ithresh] == IARRAY) {
-	int index = thresh_index[ithresh];
-	if (latticeflag)
-	  for (i = 0; i < nlocal; i++)
-	    dchoose[i] = app->iarray[index][i];
-	else
-	  for (i = 0; i < nlocal; i++)
-	    dchoose[i] = app->iarray[index][i];
-	ptr = dchoose;
-	nstride = 1;
-      } else if (thresh_array[ithresh] == DARRAY) {
-	ptr = app->darray[thresh_index[ithresh]];
-	nstride = 1;
-      }
-      
-      // unselect sites that don't meet threshold criterion
-      
-      value = thresh_value[ithresh];
-      
-      if (thresh_op[ithresh] == LT) {
-	for (i = 0; i < nlocal; i++, ptr += nstride)
-	  if (choose[i] && *ptr >= value) choose[i] = 0;
-      } else if (thresh_op[ithresh] == LE) {
-	for (i = 0; i < nlocal; i++, ptr += nstride)
-	  if (choose[i] && *ptr > value) choose[i] = 0;
-      } else if (thresh_op[ithresh] == GT) {
-	for (i = 0; i < nlocal; i++, ptr += nstride)
-	  if (choose[i] && *ptr <= value) choose[i] = 0;
-      } else if (thresh_op[ithresh] == GE) {
-	for (i = 0; i < nlocal; i++, ptr += nstride)
-	  if (choose[i] && *ptr < value) choose[i] = 0;
-      } else if (thresh_op[ithresh] == EQ) {
-	for (i = 0; i < nlocal; i++, ptr += nstride)
-	  if (choose[i] && *ptr != value) choose[i] = 0;
-      } else if (thresh_op[ithresh] == NEQ) {
-	for (i = 0; i < nlocal; i++, ptr += nstride)
-	  if (choose[i] && *ptr == value) choose[i] = 0;
+	if (xyz[i][0] != xyz[j][0]) {
+	  if (fabs(xyz[i][0]-xyz[j][0]) < 0.5*domain->xprd)
+	    c1[0] = c2[0] = c3[0] = c4[0] = 0.5*(xyz[i][0]+xyz[j][0]);
+	  else 
+	    c1[0] = c2[0] = c3[0] = c4[0] = 
+	      0.5*(xyz[i][0]+xyz[j][0]-domain->xprd);
+	  c1[1] = xyz[i][1] - 0.5*dy; c1[2] = xyz[i][2] - 0.5*dz;
+	  c2[1] = xyz[i][1] - 0.5*dy; c2[2] = xyz[i][2] + 0.5*dz;
+	  c3[1] = xyz[i][1] + 0.5*dy; c3[2] = xyz[i][2] + 0.5*dz;
+	  c4[1] = xyz[i][1] + 0.5*dy; c4[2] = xyz[i][2] - 0.5*dz;
+	} else if (xyz[i][1] != xyz[j][1]) {
+	  if (fabs(xyz[i][1]-xyz[j][1]) < 0.5*domain->yprd)
+	    c1[1] = c2[1] = c3[1] = c4[1] = 0.5*(xyz[i][1]+xyz[j][1]);
+	  else 
+	    c1[1] = c2[1] = c3[1] = c4[1] = 
+	      0.5*(xyz[i][1]+xyz[j][1]-domain->yprd);
+	  c1[0] = xyz[i][0] - 0.5*dx; c1[2] = xyz[i][2] - 0.5*dz;
+	  c2[0] = xyz[i][0] - 0.5*dx; c2[2] = xyz[i][2] + 0.5*dz;
+	  c3[0] = xyz[i][0] + 0.5*dx; c3[2] = xyz[i][2] + 0.5*dz;
+	  c4[0] = xyz[i][0] + 0.5*dx; c4[2] = xyz[i][2] - 0.5*dz;
+	} else {
+	  if (fabs(xyz[i][2]-xyz[j][2]) < 0.5*domain->zprd)
+	    c1[2] = c2[2] = c3[2] = c4[2] = 0.5*(xyz[i][2]+xyz[j][2]);
+	  else
+	    c1[2] = c2[2] = c3[2] = c4[2] = 
+	      0.5*(xyz[i][2]+xyz[j][2]-domain->zprd);
+	  c1[0] = xyz[i][0] - 0.5*dx; c1[1] = xyz[i][1] - 0.5*dy;
+	  c2[0] = xyz[i][0] - 0.5*dx; c2[1] = xyz[i][1] + 0.5*dy;
+	  c3[0] = xyz[i][0] + 0.5*dx; c3[1] = xyz[i][1] + 0.5*dy;
+	  c4[0] = xyz[i][0] + 0.5*dx; c4[1] = xyz[i][1] - 0.5*dy;
+	}
+	
+	image->draw_cylinder(c1,c2,boundcolor,bounddiam,3);
+	image->draw_cylinder(c2,c3,boundcolor,bounddiam,3);
+	image->draw_cylinder(c3,c4,boundcolor,bounddiam,3);
+	image->draw_cylinder(c4,c1,boundcolor,bounddiam,3);
       }
     }
   }
 
-  // compress choose flags into clist
-  // nchoose = # of selected atoms
-  // clist[i] = local index of each selected atom
-  
-  nchoose = 0;
-  for (i = 0; i < nlocal; i++)
-    if (choose[i]) clist[nchoose++] = i;
-  
-  return nchoose;
-}
+  // render outline of simulation box
 
-/* ---------------------------------------------------------------------- */
+  if (boxflag) {
+    double diameter = MIN(boxxhi-boxxlo,boxyhi-boxylo);
+    if (domain->dimension == 3) diameter = MIN(diameter,boxzhi-boxzlo);
+    diameter *= boxdiam;
 
-void DumpDream3d::pack()
-{
-  for (int n = 0; n < size_one; n++) (this->*pack_choice[n])(n);
-}
+    double (*corners)[3];
+    double corner[8][3];
+    corner[0][0] = boxxlo; corner[0][1] = boxylo; corner[0][2] = boxzlo;
+    corner[1][0] = boxxhi; corner[1][1] = boxylo; corner[1][2] = boxzlo;
+    corner[2][0] = boxxlo; corner[2][1] = boxyhi; corner[2][2] = boxzlo;
+    corner[3][0] = boxxhi; corner[3][1] = boxyhi; corner[3][2] = boxzlo;
+    corner[4][0] = boxxlo; corner[4][1] = boxylo; corner[4][2] = boxzhi;
+    corner[5][0] = boxxhi; corner[5][1] = boxylo; corner[5][2] = boxzhi;
+    corner[6][0] = boxxlo; corner[6][1] = boxyhi; corner[6][2] = boxzhi;
+    corner[7][0] = boxxhi; corner[7][1] = boxyhi; corner[7][2] = boxzhi;
+    corners = corner;
 
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::write_header(int ndump, double time)
-{
-  if (multiproc) (this->*header_choice)(ndump,time);
-  else if (me == 0) (this->*header_choice)(ndump,time);
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::write_data(int n, double *buf)
-{
-  (this->*write_choice)(n,buf);
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::header_binary(int ndump, double time)
-{
-  fwrite(&idump,sizeof(int),1,fp);
-  fwrite(&time,sizeof(double),1,fp);
-  fwrite(&ndump,sizeof(int),1,fp);
-  fwrite(&boxxlo,sizeof(double),1,fp);
-  fwrite(&boxxhi,sizeof(double),1,fp);
-  fwrite(&boxylo,sizeof(double),1,fp);
-  fwrite(&boxyhi,sizeof(double),1,fp);
-  fwrite(&boxzlo,sizeof(double),1,fp);
-  fwrite(&boxzhi,sizeof(double),1,fp);
-  fwrite(&size_one,sizeof(int),1,fp);
-  if (multiproc) {
-    int one = 1;
-    fwrite(&one,sizeof(int),1,fp);
-  } else fwrite(&nprocs,sizeof(int),1,fp);
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::header_text(int ndump, double time)
-{
-  fprintf(fp,"ITEM: TIMESTEP\n");
-  fprintf(fp,"%d %10g\n",idump,time);
-  fprintf(fp,"ITEM: NUMBER OF ATOMS\n");
-  fprintf(fp,"%d\n",ndump);
-  fprintf(fp,"ITEM: BOX BOUNDS\n");
-  fprintf(fp,"%g %g\n",boxxlo,boxxhi);
-  fprintf(fp,"%g %g\n",boxylo,boxyhi);
-  fprintf(fp,"%g %g\n",boxzlo,boxzhi);
-  fprintf(fp,"ITEM: ATOMS %s\n",columns);
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::write_binary(int n, double *buf)
-{
-  n *= size_one;
-  fwrite(&n,sizeof(int),1,fp);
-  fwrite(buf,sizeof(double),n,fp);
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::write_text(int n, double *buf)
-{
-  int i,j;
-
-  int m = 0;
-  for (i = 0; i < n; i++) {
-    for (j = 0; j < size_one; j++) {
-      if (vtype[j] == INT)
-	fprintf(fp,vformat[j],static_cast<int> (buf[m]));
-      else if (vtype[j] == DOUBLE)
-	fprintf(fp,vformat[j],buf[m]);
-      else if (vtype[j] == TAGINT) 
-	fprintf(fp,vformat[j],static_cast<tagint> (buf[m]));
-      m++;
-    }
-    fprintf(fp,"\n");
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-int DumpDream3d::parse_fields(int narg, char **arg)
-{
-  int i;
-  for (int iarg = 4; iarg < narg; iarg++) {
-    i = iarg-4;
-
-    if (strcmp(arg[iarg],"id") == 0) {
-      pack_choice[i] = &DumpDream3d::pack_id;
-      vtype[i] = TAGINT;
-    } else if (strcmp(arg[iarg],"site") == 0) {
-      pack_choice[i] = &DumpDream3d::pack_site;
-      vtype[i] = INT;
-      if (app->iarray == NULL)
-	error->all(FLERR,"Dumping a quantity application does not support");
-    } else if (strcmp(arg[iarg],"x") == 0) {
-      pack_choice[i] = &DumpDream3d::pack_x;
-      vtype[i] = DOUBLE;
-    } else if (strcmp(arg[iarg],"y") == 0) {
-      pack_choice[i] = &DumpDream3d::pack_y;
-      vtype[i] = DOUBLE;
-    } else if (strcmp(arg[iarg],"z") == 0) {
-      pack_choice[i] = &DumpDream3d::pack_z;
-      vtype[i] = DOUBLE;
-    } else if (strcmp(arg[iarg],"energy") == 0) {
-      pack_choice[i] = &DumpDream3d::pack_energy;
-      vtype[i] = DOUBLE;
-    } else if (strcmp(arg[iarg],"propensity") == 0) {
-      pack_choice[i] = &DumpDream3d::pack_propensity;
-      vtype[i] = DOUBLE;
-
-    // integer value = iN
-    // double value = dN
-
-    } else if (arg[iarg][0] == 'i') {
-      pack_choice[i] = &DumpDream3d::pack_iarray;
-      vtype[i] = INT;
-      vindex[i] = atoi(&arg[iarg][1]);
-      if (latticeflag && (vindex[i] < 1 || vindex[i] > app->ninteger))
-	error->all(FLERR,"Invalid keyword in dump command");
-      vindex[i]--;
-    } else if (arg[iarg][0] == 'd') {
-      pack_choice[i] = &DumpDream3d::pack_darray;
-      vtype[i] = DOUBLE;
-      vindex[i] = atoi(&arg[iarg][1]);
-      if (latticeflag && (vindex[i] < 1 || vindex[i] > app->ndouble))
-	error->all(FLERR,"Invalid keyword in dump command");
-      vindex[i]--;
-
-    } else return iarg;
+    image->draw_box(corners,diameter);
   }
 
-  return narg;
+  // render XYZ axes in red/green/blue
+  // offset by 10% of box size and scale by axeslen
+
+  if (axesflag) {
+    double diameter = MIN(boxxhi-boxxlo,boxyhi-boxylo);
+    if (domain->dimension == 3) diameter = MIN(diameter,boxzhi-boxzlo);
+    diameter *= axesdiam;
+
+    double (*corners)[3];
+    double corner[8][3];
+    corner[0][0] = boxxlo; corner[0][1] = boxylo; corner[0][2] = boxzlo;
+    corner[1][0] = boxxhi; corner[1][1] = boxylo; corner[1][2] = boxzlo;
+    corner[2][0] = boxxlo; corner[2][1] = boxyhi; corner[2][2] = boxzlo;
+    corner[3][0] = boxxlo; corner[3][1] = boxylo; corner[3][2] = boxzhi;
+    corners = corner;
+
+    double offset = MAX(boxxhi-boxxlo,boxyhi-boxylo);
+    if (domain->dimension == 3) offset = MAX(offset,boxzhi-boxzlo);
+    offset *= 0.1;
+    corners[0][0] -= offset; corners[0][1] -= offset; corners[0][2] -= offset;
+    corners[1][0] -= offset; corners[1][1] -= offset; corners[1][2] -= offset;
+    corners[2][0] -= offset; corners[2][1] -= offset; corners[2][2] -= offset;
+    corners[3][0] -= offset; corners[3][1] -= offset; corners[3][2] -= offset;
+
+    corners[1][0] = corners[0][0] + axeslen*(corners[1][0]-corners[0][0]);
+    corners[1][1] = corners[0][1] + axeslen*(corners[1][1]-corners[0][1]);
+    corners[1][2] = corners[0][2] + axeslen*(corners[1][2]-corners[0][2]);
+    corners[2][0] = corners[0][0] + axeslen*(corners[2][0]-corners[0][0]);
+    corners[2][1] = corners[0][1] + axeslen*(corners[2][1]-corners[0][1]);
+    corners[2][2] = corners[0][2] + axeslen*(corners[2][2]-corners[0][2]);
+    corners[3][0] = corners[0][0] + axeslen*(corners[3][0]-corners[0][0]);
+    corners[3][1] = corners[0][1] + axeslen*(corners[3][1]-corners[0][1]);
+    corners[3][2] = corners[0][2] + axeslen*(corners[3][2]-corners[0][2]);
+
+    image->draw_axes(corners,diameter);
+  }
 }
 
 /* ---------------------------------------------------------------------- */
 
 int DumpDream3d::modify_param(int narg, char **arg)
 {
-  if (strcmp(arg[0],"region") == 0) {
+  int n = DumpText::modify_param(narg,arg);
+  if (n) return n;
+  
+  if (strcmp(arg[0],"backcolor") == 0) {
     if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
-    if (strcmp(arg[1],"none") == 0) iregion = -1;
-    else {
-      iregion = domain->find_region(arg[1]);
-      if (iregion == -1) error->all(FLERR,"Dump_modify region ID does not exist");
-      int n = strlen(arg[1]) + 1;
-      idregion = new char[n];
-      strcpy(idregion,arg[1]);
-    }
+    double *color = image->color2rgb(arg[1]);
+    if (color == NULL) error->all(FLERR,"Invalid color in dump_modify command");
+    image->background[0] = static_cast<int> (color[0]*255.0);
+    image->background[1] = static_cast<int> (color[1]*255.0);
+    image->background[2] = static_cast<int> (color[2]*255.0);
     return 2;
-
-  } else if (strcmp(arg[0],"thresh") == 0) {
-    if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
-    if (strcmp(arg[1],"none") == 0) {
-      if (nthresh) {
-	memory->sfree(thresh_array);
-	memory->sfree(thresh_op);
-	memory->sfree(thresh_value);
-	memory->sfree(thresh_index);
-	thresh_array = NULL;
-	thresh_op = NULL;
-	thresh_value = NULL;
-	thresh_index = NULL;
-      }
-      nthresh = 0;
-      return 2;
-    }
-    
-    if (narg < 4) error->all(FLERR,"Illegal dump_modify command");
-    
-    // grow threshold arrays
-    
-    thresh_array = (int *)
-      memory->srealloc(thresh_array,(nthresh+1)*sizeof(int),
-		       "dump:thresh_array");
-    thresh_op = (int *)
-      memory->srealloc(thresh_op,(nthresh+1)*sizeof(int),
-		       "dump:thresh_op");
-    thresh_value = (double *)
-      memory->srealloc(thresh_value,(nthresh+1)*sizeof(double),
-		       "dump:thresh_value");
-    thresh_index = (int *)
-      memory->srealloc(thresh_index,(nthresh+1)*sizeof(int),
-		       "dump:thresh_index");
-    
-    // set keyword type of threshold
-    // customize by adding to if statement
-    
-    if (strcmp(arg[1],"id") == 0) thresh_array[nthresh] = ID;
-    
-    else if (strcmp(arg[1],"site") == 0) {
-      if (app->iarray == NULL)
-	error->all(FLERR,"Threshold for a quantity application does not support");
-      thresh_array[nthresh] = SITE;
-    }
-    
-    else if (strcmp(arg[1],"x") == 0) thresh_array[nthresh] = X;
-    else if (strcmp(arg[1],"y") == 0) thresh_array[nthresh] = Y;
-    else if (strcmp(arg[1],"z") == 0) thresh_array[nthresh] = Z;
-    else if (strcmp(arg[1],"energy") == 0) thresh_array[nthresh] = ENERGY;
-    else if (strcmp(arg[1],"propensity") == 0)
-      thresh_array[nthresh] = PROPENSITY;
-    
-    // integer value = iN
-    // double value = dN
-    
-    else if (arg[1][0] == 'i') {
-      thresh_array[nthresh] = IARRAY;
-      thresh_index[nthresh] = atoi(&arg[1][1]);
-      if (thresh_index[nthresh] < 1 || 
-	  thresh_index[nthresh] > app->ninteger)
-	error->all(FLERR,"Threshold for a quantity application does not support");
-      thresh_index[nthresh]--;
-    } else if (arg[1][0] == 'd') {
-      thresh_array[nthresh] = DARRAY;
-      thresh_index[nthresh] = atoi(&arg[1][1]);
-      if (thresh_index[nthresh] < 1 || 
-	  thresh_index[nthresh] > app->ndouble)
-	error->all(FLERR,"Threshold for a quantity application does not support");
-      thresh_index[nthresh]--;
-      
-    } else error->all(FLERR,"Invalid dump_modify threshold operator");
-    
-    // set operation type of threshold
-    
-    if (strcmp(arg[2],"<") == 0) thresh_op[nthresh] = LT;
-    else if (strcmp(arg[2],"<=") == 0) thresh_op[nthresh] = LE;
-    else if (strcmp(arg[2],">") == 0) thresh_op[nthresh] = GT;
-    else if (strcmp(arg[2],">=") == 0) thresh_op[nthresh] = GE;
-    else if (strcmp(arg[2],"==") == 0) thresh_op[nthresh] = EQ;
-    else if (strcmp(arg[2],"!=") == 0) thresh_op[nthresh] = NEQ;
-    else error->all(FLERR,"Invalid dump_modify threshold operator");
-    
-    // set threshold value
-    
-    thresh_value[nthresh] = atof(arg[3]);
-    
-    nthresh++;
-    return 4;
   }
 
+  if (strcmp(arg[0],"boundcolor") == 0) {
+    if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
+    boundcolor = image->color2rgb(arg[1]);
+    if (boundcolor == NULL) error->all(FLERR,
+				       "Invalid color in dump_modify command");
+    return 2;
+  }
+
+  if (strcmp(arg[0],"boxcolor") == 0) {
+    if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
+    image->boxcolor = image->color2rgb(arg[1]);
+    if (image->boxcolor == NULL) 
+      error->all(FLERR,"Invalid color in dump_modify command");
+    return 2;
+  }
+
+  if (strcmp(arg[0],"color") == 0) {
+    if (narg < 5) error->all(FLERR,"Illegal dump_modify command");
+    int flag = image->addcolor(arg[1],atof(arg[2]),atof(arg[3]),atof(arg[4]));
+    if (flag) error->all(FLERR,"Illegal dump_modify command");
+    return 5;
+  }
+
+  if (strcmp(arg[0],"scolor") == 0) {
+    if (narg < 3) error->all(FLERR,"Illegal dump_modify command");
+    if (scolor != IATTRIBUTE)
+      error->all(FLERR,"Dump_modify scolor requires integer attribute "
+		 "for dump image color");
+
+    int nlo,nhi;
+    bounds(arg[1],clo,chi,nlo,nhi);
+
+    // color arg = "random"
+    // assign random RGB values to each attribute
+
+    if (strcmp(arg[2],"random") == 0) {
+      RandomPark *randomcolor = new RandomPark(ranmaster->uniform()); 
+      for (int i = nlo; i <= nhi; i++) {
+	double *rgb;
+	if (color_memflag[i-clo] == 0) rgb = new double[3];
+	else rgb = colorattribute[i-clo];
+	rgb[0] = randomcolor->uniform();
+	rgb[1] = randomcolor->uniform();
+	rgb[2] = randomcolor->uniform();
+	colorattribute[i-clo] = rgb;
+	color_memflag[i-clo] = 1;
+      }
+      delete randomcolor;
+
+    // color arg is a color name
+    // ptrs = list of ncount colornames separated by '/'
+    // assign each of ncount colors in round-robin fashion to attributes
+
+    } else {
+      int ncount = 1;
+      char *nextptr;
+      char *ptr = arg[2];
+      while (nextptr = strchr(ptr,'/')) {
+	ptr = nextptr + 1;
+	ncount++;
+      }
+      char **ptrs = new char*[ncount+1];
+      ncount = 0;
+      ptrs[ncount++] = strtok(arg[2],"/");
+      while (ptrs[ncount++] = strtok(NULL,"/"));
+      ncount--;
+      
+      int m = 0;
+      for (int i = nlo; i <= nhi; i++) {
+	if (color_memflag[i-clo] == 1) delete [] colorattribute[i-clo];
+	colorattribute[i-clo] = image->color2rgb(ptrs[m%ncount]);
+	color_memflag[i-clo] = 0;
+	if (colorattribute[i-clo] == NULL)
+	  error->all(FLERR,"Invalid color in dump_modify command");
+	m++;
+      }
+
+      delete [] ptrs;
+    }
+
+    return 3;
+  }
+
+  if (strcmp(arg[0],"sdiam") == 0) {
+    if (narg < 3) error->all(FLERR,"Illegal dump_modify command");
+    if (sdiam != IATTRIBUTE)
+      error->all(FLERR,"Dump_modify sdiam requires integer attribute "
+		 "for dump image diameter");
+
+    int nlo,nhi;
+    bounds(arg[1],dlo,dhi,nlo,nhi);
+
+    double diam = atof(arg[2]);
+    if (diam <= 0.0) error->all(FLERR,"Illegal dump_modify command");
+    for (int i = nlo; i <= nhi; i++) diamattribute[i-dlo] = diam;
+    return 3;
+  }
+
+  if (strcmp(arg[0],"smap") == 0) {
+    if (narg < 6) error->all(FLERR,"Illegal dump_modify command");
+    if (strlen(arg[3]) != 2) error->all(FLERR,"Illegal dump_modify command");
+    int factor = 2;
+    if (arg[3][0] == 's') factor = 1;
+    int nentry = atoi(arg[5]);
+    if (nentry < 1) error->all(FLERR,"Illegal dump_modify command");
+    int n = 6 + factor*nentry;
+    if (narg < n) error->all(FLERR,"Illegal dump_modify command");
+    int flag = image->colormap(n-1,&arg[1]);
+    if (flag) error->all(FLERR,"Illegal dump_modify command");
+    return n;
+  }
+  
   return 0;
 }
 
-
-/* ----------------------------------------------------------------------
-   one method for every keyword dump can output
-   the site quantity is packed into buf starting at n with stride size_one
-------------------------------------------------------------------------- */
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::pack_id(int n)
-{
-  tagint *id = app->id;
-
-  for (int i = 0; i < nchoose; i++) {
-    buf[n] = id[clist[i]];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::pack_site(int n)
-{
-  int *site = app->iarray[0];
-
-  for (int i = 0; i < nchoose; i++) {
-    buf[n] = site[clist[i]];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::pack_x(int n)
-{
-  double **xyz = app->xyz;
-
-  for (int i = 0; i < nchoose; i++) {
-    buf[n] = xyz[clist[i]][0];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::pack_y(int n)
-{
-  double **xyz = app->xyz;
-
-  for (int i = 0; i < nchoose; i++) {
-    buf[n] = xyz[clist[i]][1];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::pack_z(int n)
-{
-  double **xyz = app->xyz;
-
-  for (int i = 0; i < nchoose; i++) {
-    buf[n] = xyz[clist[i]][2];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::pack_energy(int n)
-{
-  if (latticeflag) {
-    for (int i = 0; i < nchoose; i++) {
-      buf[n] = applattice->site_energy(clist[i]);
-      n += size_one;
-    }
-  } else {
-    for (int i = 0; i < nchoose; i++) {
-      buf[n] = appoff->site_energy(clist[i]);
-      n += size_one;
-    }
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::pack_propensity(int n)
-{
-  if (latticeflag) {
-    for (int i = 0; i < nchoose; i++) {
-      buf[n] = applattice->site_propensity(clist[i]);
-      n += size_one;
-    }
-  } else {
-    for (int i = 0; i < nchoose; i++) {
-      buf[n] = appoff->site_propensity(clist[i]);
-      n += size_one;
-    }
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::pack_iarray(int n)
-{
-  int *ivec = app->iarray[vindex[n]];
-
-  for (int i = 0; i < nchoose; i++) {
-    buf[n] = ivec[clist[i]];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpDream3d::pack_darray(int n)
-{
-  double *dvec = app->darray[vindex[n]];
-
-  for (int i = 0; i < nchoose; i++) {
-    buf[n] = dvec[clist[i]];
-    n += size_one;
-  }
-}
+void DumpDream3d::bounds(char *str, int lo, int hi, int &nlo, int &nhi){}

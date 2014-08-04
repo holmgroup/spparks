@@ -20,71 +20,61 @@ DumpStyle(dream3d,DumpDream3d)
 #ifndef SPK_DUMP_DREAM3D_H
 #define SPK_DUMP_DREAM3D_H
 
-#include "dump.h"
+#include "math.h"
+#include "dump_text.h"
 
 namespace SPPARKS_NS {
 
-class DumpDream3d : public Dump {
+class DumpDream3d : public DumpText{
  public:
-  DumpDream3d(class SPPARKS *, int, char **);
-  virtual ~DumpDream3d();
+  DumpDream3d(class SPPARKS *, int, char**);
+  ~DumpDream3d();
 
- protected:
-  int ioptional;             // where optional trailing args start
+ private:
+  int filetype;
+  int write_style;
+  int shape,boundflag,scolor,sdiam,boundvalue,boundindex;
+  int crange,drange;
+  int clo,chi,dlo,dhi;
+  double sdiamvalue;
+  double bounddiam;
 
-  int *vtype;                // type of each vector (INT, DOUBLE)
-  int *vindex;               // index into int,double packs
-  char **vformat;            // format string for each vector element
+  char *thetastr,*phistr;          // variables for view theta,phi
+  int thetavar,phivar;             // index to theta,phi vars
+  int cflag;                       // static/dynamic box center
+  double cx,cy,cz;                 // fractional box center
+  char *cxstr,*cystr,*czstr;       // variables for box center
+  int cxvar,cyvar,czvar;           // index to box center vars
+  char *upxstr,*upystr,*upzstr;    // view up vector variables
+  int upxvar,upyvar,upzvar;        // index to up vector vars
+  char *zoomstr,*perspstr;         // view zoom and perspective variables
+  int zoomvar,perspvar;            // index to zoom,persp vars
+  int boxflag,axesflag;            // 0/1 for draw box and axes
+  double boxdiam,axeslen,axesdiam; // params for drawing box and axes
 
-  int iregion;               // -1 if no region, else which region
-  char *idregion;            // region ID
+  int viewflag;                    // overall view is static or dynamic
 
-  int nthresh;               // # of defined threshholds
-  int *thresh_array;         // array to threshold on for each nthresh
-  int *thresh_op;            // threshold operation for each nthresh
-  double *thresh_value;      // threshold value for each nthresh
-  int *thresh_index;         // N index for iN and dN thresholds
+  class AppLattice *applattice;
 
-  char *columns;             // text describing columns of dump output
+  double *diamattribute;
+  double **colorattribute;
+  int *color_memflag;
+  double *boundcolor;
 
-  int nchoose;               // # of selected atoms
-  int maxlocal;              // size of atom selection and variable arrays
-  int *choose;               // lists of sites chosen for output
-  double *dchoose;           // value for each atom to threshhold against
-  int *clist;                // compressed list of indices of selected atoms
+  class Image *image;              // class that renders each image
 
-  // private methods
+  void init_style();
+  int modify_param(int, char **);
+  void write(double);
+  void create_dream3d_file();
 
-  virtual void init_style();
-  int count();
-  void pack();
-  void write_header(int, double);
-  void write_data(int, double *);
-  int parse_fields(int, char **);
-  virtual int modify_param(int, char **);
+  void box_center();
+  void view_params();
+  void box_bounds();
 
-  typedef void (DumpDream3d::*FnPtrHeader)(int, double);
-  FnPtrHeader header_choice;           // ptr to write header functions
-  void header_binary(int, double);
-  void header_text(int, double);
+  void create_image();
 
-  typedef void (DumpDream3d::*FnPtrData)(int, double *);
-  FnPtrData write_choice;              // ptr to write data functions
-  void write_binary(int, double *);
-  void write_text(int, double *);
-
-  typedef void (DumpDream3d::*FnPtrPack)(int);
-  FnPtrPack *pack_choice;              // ptrs to pack functions
-
-  void pack_id(int);
-  void pack_site(int);
-  void pack_x(int);
-  void pack_y(int);
-  void pack_z(int);
-  void pack_energy(int);
-  void pack_propensity(int);
-  void pack_iarray(int);
-  void pack_darray(int);
+  void bounds(char *, int, int, int &, int &);
 };
 
 }
@@ -94,26 +84,13 @@ class DumpDream3d : public Dump {
 
 /* ERROR/WARNING messages:
 
-E: Invalid attribute in dump text command
+E: Invalid dump image filename
 
 UNDOCUMENTED
 
-E: Dump requires propensity but no KMC solve performed
-
-Only KMC solvers compute propensity for sites.
-
-E: Region ID for dump text does not exist
+E: Cannot dump JPG file
 
 UNDOCUMENTED
-
-E: Dumping a quantity application does not support
-
-The application defines what variables it supports.  You cannot
-output a variable in a dump that isn't supported.
-
-E: Invalid keyword in dump command
-
-Self-explanatory.
 
 E: Illegal ... command
 
@@ -122,18 +99,96 @@ documentation for the command.  You can use -echo screen as a
 command-line option when running SPPARKS to see the offending
 line.
 
-E: Dump_modify region ID does not exist
+E: Dump image with quantity application does not support
 
 UNDOCUMENTED
 
-E: Threshold for a quantity application does not support
+E: Invalid dump image theta value
 
-The application defines what variables it supports.  You cannot do a
-threshold test with the dump command on a variable that isn't
-supported.
+UNDOCUMENTED
 
-E: Invalid dump_modify threshold operator
+E: Dump image persp option is not yet supported
 
-Self-explanatory.
+UNDOCUMENTED
+
+W: Using dump image boundary with spheres
+
+UNDOCUMENTED
+
+E: Dump image boundary requires lattice app
+
+UNDOCUMENTED
+
+E: Dump image drange must be set
+
+UNDOCUMENTED
+
+E: Dump image crange must be set
+
+UNDOCUMENTED
+
+E: Dump image requires one snapshot per file
+
+UNDOCUMENTED
+
+E: Variable name for dump image theta does not exist
+
+UNDOCUMENTED
+
+E: Variable for dump image theta is invalid style
+
+UNDOCUMENTED
+
+E: Variable name for dump image phi does not exist
+
+UNDOCUMENTED
+
+E: Variable for dump image phi is invalid style
+
+UNDOCUMENTED
+
+E: Variable name for dump image center does not exist
+
+UNDOCUMENTED
+
+E: Variable for dump image center is invalid style
+
+UNDOCUMENTED
+
+E: Variable name for dump image zoom does not exist
+
+UNDOCUMENTED
+
+E: Variable for dump image zoom is invalid style
+
+UNDOCUMENTED
+
+E: Variable name for dump image persp does not exist
+
+UNDOCUMENTED
+
+E: Variable for dump image persp is invalid style
+
+UNDOCUMENTED
+
+E: Invalid dump image zoom value
+
+UNDOCUMENTED
+
+E: Invalid dump image persp value
+
+UNDOCUMENTED
+
+E: Invalid color in dump_modify command
+
+UNDOCUMENTED
+
+E: Dump_modify scolor requires integer attribute for dump image color
+
+UNDOCUMENTED
+
+E: Dump_modify sdiam requires integer attribute for dump image diameter
+
+UNDOCUMENTED
 
 */
