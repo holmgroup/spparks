@@ -23,6 +23,11 @@ DumpStyle(dream3d,DumpDream3d)
 #include "math.h"
 #include "dump_text.h"
 
+#ifdef SPPARKS_HDF5
+#include "H5Cpp.h"
+#include "hdf5_hl.h"
+#endif
+
 namespace SPPARKS_NS {
 
 class DumpDream3d : public DumpText{
@@ -33,48 +38,20 @@ class DumpDream3d : public DumpText{
  private:
   int filetype;
   int write_style;
-  int shape,boundflag,scolor,sdiam,boundvalue,boundindex;
-  int crange,drange;
-  int clo,chi,dlo,dhi;
-  double sdiamvalue;
-  double bounddiam;
-
-  char *thetastr,*phistr;          // variables for view theta,phi
-  int thetavar,phivar;             // index to theta,phi vars
-  int cflag;                       // static/dynamic box center
-  double cx,cy,cz;                 // fractional box center
-  char *cxstr,*cystr,*czstr;       // variables for box center
-  int cxvar,cyvar,czvar;           // index to box center vars
-  char *upxstr,*upystr,*upzstr;    // view up vector variables
-  int upxvar,upyvar,upzvar;        // index to up vector vars
-  char *zoomstr,*perspstr;         // view zoom and perspective variables
-  int zoomvar,perspvar;            // index to zoom,persp vars
-  int boxflag,axesflag;            // 0/1 for draw box and axes
-  double boxdiam,axeslen,axesdiam; // params for drawing box and axes
-
-  int viewflag;                    // overall view is static or dynamic
+#ifdef SPPARKS_HDF5
+  hid_t output_file;
+  herr_t h5_status;
+#endif
 
   class AppLattice *applattice;
-
-  double *diamattribute;
-  double **colorattribute;
-  int *color_memflag;
-  double *boundcolor;
-
-  class Image *image;              // class that renders each image
 
   void init_style();
   int modify_param(int, char **);
   void write(double);
-  void create_dream3d_file();
+  void create_hdf5_file();
+  void write_dream3d();
+  void write_h5();
 
-  void box_center();
-  void view_params();
-  void box_bounds();
-
-  void create_image();
-
-  void bounds(char *, int, int, int &, int &);
 };
 
 }
