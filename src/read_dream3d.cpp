@@ -47,6 +47,7 @@ ReadDream3d::ReadDream3d(SPPARKS *spk) : Pointers(spk)
   buffer = new int[CHUNK*MAXLINE];
   narg = maxarg = 0;
   arg = NULL;
+  load_orientations = false;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -63,8 +64,14 @@ void ReadDream3d::command(int narg, char **arg)
 {
   if (app == NULL) error->all(FLERR,"read_dream3d command before app_style set");
 
-  if (narg != 1) error->all(FLERR,"Illegal read_dream3d command");
-
+  if (narg ==  1)
+    input_file = arg[0];
+  else if (narg == 2) 
+    load_orientations = true;
+  else
+    error->all(FLERR,"Illegal read_dream3d command");
+  
+  
   if (domain->dimension == 2 && domain->zperiodic == 0)
     error->all(FLERR,"Cannot run 2d simulation with nonperiodic Z dimension");
   if (domain->dimension == 1 && 
@@ -84,7 +91,7 @@ void ReadDream3d::command(int narg, char **arg)
     if (screen) fprintf(screen,"Reading dream3d file ...\n");
 #ifdef SPPARKS_HDF5
     // make sure the file exists first
-    file_id = H5Fopen(arg[0], H5F_ACC_RDONLY, H5P_DEFAULT);
+    file_id = H5Fopen(input_file, H5F_ACC_RDONLY, H5P_DEFAULT);
 #else
     error->all(FLERR,"Compile with HDF5 and set SPPARKS_HDF5 to read dream3d files.");
 #endif
@@ -119,7 +126,10 @@ void ReadDream3d::command(int narg, char **arg)
   extract_grain_ids();
 
   // Read orientation data
-
+  // do this if specified and if app_style allows orientations
+  if load_orientations {
+      ;
+    }
   // close file
   std::cout << "Finished reading dream3d file" << std::endl;
 #ifdef SPPARKS_HDF5

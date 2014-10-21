@@ -45,6 +45,8 @@ class ReadDream3d : protected Pointers {
   int narg,maxarg,compressed;
   char **arg;
 
+  char* input_file;
+  bool load_orientations;
   int latticeflag;
   class AppLattice *applattice;
   class AppOffLattice *appoff;
