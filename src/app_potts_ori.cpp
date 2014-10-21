@@ -15,7 +15,7 @@
 #include "math.h"
 #include "string.h"
 #include "stdlib.h"
-#include "app_potts_aniso.h"
+#include "app_potts_ori.h"
 #include "solve.h"
 #include "random_mars.h"
 #include "random_park.h"
@@ -29,7 +29,7 @@ using namespace SPPARKS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-AppPottsAniso::AppPottsAniso(SPPARKS *spk, int narg, char **arg) : 
+AppPottsOri::AppPottsOri(SPPARKS *spk, int narg, char **arg) : 
   AppPotts(spk,narg,arg)
 {
   if (narg != 2) error->all(FLERR,"Illegal app_style command");
