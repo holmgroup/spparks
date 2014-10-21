@@ -12,7 +12,7 @@
 ------------------------------------------------------------------------- */
 
 #ifdef APP_CLASS
-AppStyle(potts/aniso,AppPottsAniso)
+AppStyle(potts/ori,AppPottsOri)
 
 #else
 
@@ -20,10 +20,10 @@ AppStyle(potts/aniso,AppPottsAniso)
 
 namespace SPPARKS_NS {
 
-class AppPottsAniso : public AppPotts {
+class AppPottsOri : public AppPotts {
  public:
-  AppPottsAniso(class SPPARKS *, int, char **);
-  ~AppPottsAniso();
+  AppPottsOri(class SPPARKS *, int, char **);
+  ~AppPottsOri();
   void input_app(char *, int, char **);
   void init_app();
 
@@ -35,8 +35,8 @@ class AppPottsAniso : public AppPotts {
   double *e_table, *m_table;
 
  private:
-  double (AppPottsAniso::*energy)(int,int);
-  double (AppPottsAniso::*mobility)(int,int);
+  double (AppPottsOri::*energy)(int,int);
+  double (AppPottsOri::*mobility)(int,int);
   double uniform_energy(int,int);
   double uniform_mobility(int,int);
   double lookup_energy(int,int);

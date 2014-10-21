@@ -35,14 +35,14 @@ AppPottsOri::AppPottsOri(SPPARKS *spk, int narg, char **arg) :
   if (narg != 2) error->all(FLERR,"Illegal app_style command");
 
   // default to isotropic potts model
-  energy = &AppPottsAniso::uniform_energy;
-  mobility = &AppPottsAniso::uniform_mobility;
+  energy = &AppPottsOri::uniform_energy;
+  mobility = &AppPottsOri::uniform_mobility;
   e_table = m_table = NULL;
 }
 
 /* ---------------------------------------------------------------------- */
 
-AppPottsAniso::~AppPottsAniso()
+AppPottsOri::~AppPottsOri()
 {
   // sites and unique are deleted by the ~AppPotts virtual destructor
   // delete [] sites;
@@ -56,14 +56,14 @@ AppPottsAniso::~AppPottsAniso()
    input script commands unique to this app
 ------------------------------------------------------------------------- */
 
-void AppPottsAniso::input_app(char *command, int narg, char **arg)
+void AppPottsOri::input_app(char *command, int narg, char **arg)
 {
   if (strcmp(command,"load_mobility") == 0) {
     if (narg != 1) error->all(FLERR,"Illegal load_mobility command");
     // extract the filename for mobility lookup table
     char *m_filename = arg[0];
     // set fn pointer (*mobility) to the lookup function
-    mobility = &AppPottsAniso::lookup_mobility;
+    mobility = &AppPottsOri::lookup_mobility;
     // load the mobility lookup table *m_table
     fprintf(stdout, "loading mobility lookup table...");
     m_table = load_table(m_filename);
@@ -75,7 +75,7 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
     // extract the filename for energy lookup table
     char *e_filename = arg[0];
     // set fn pointer (*energy) to the lookup function
-    energy = &AppPottsAniso::lookup_energy;
+    energy = &AppPottsOri::lookup_energy;
     // load the energy lookup table *e_table
     e_table = load_table(e_filename);
   }
@@ -87,7 +87,7 @@ void AppPottsAniso::input_app(char *command, int narg, char **arg)
    check validity of site values
 ------------------------------------------------------------------------- */
 
-void AppPottsAniso::init_app()
+void AppPottsOri::init_app()
 {
   delete [] sites;
   delete [] unique;
@@ -107,7 +107,7 @@ void AppPottsAniso::init_app()
    pointed to by (*energy)
 ------------------------------------------------------------------------- */
 
-double AppPottsAniso::site_energy(int i)
+double AppPottsOri::site_energy(int i)
 {
   int isite = spin[i];
   int jsite = 0;
@@ -121,7 +121,7 @@ double AppPottsAniso::site_energy(int i)
   }
   return eng;
 }
-// double AppPottsAniso::site_energy(int i)
+// double AppPottsOri::site_energy(int i)
 // {
 //   int isite = spin[i];
 //   int eng = 0;
@@ -137,7 +137,7 @@ double AppPottsAniso::site_energy(int i)
    flip to random spin from 1 to nspins
 ------------------------------------------------------------------------- */
 
-void AppPottsAniso::site_event_rejection(int i, RandomPark *random)
+void AppPottsOri::site_event_rejection(int i, RandomPark *random)
 {
  
   int oldstate = spin[i];
@@ -180,7 +180,7 @@ void AppPottsAniso::site_event_rejection(int i, RandomPark *random)
    compute total propensity of owned site summed over possible events
 ------------------------------------------------------------------------- */
 
-double AppPottsAniso::site_propensity(int i)
+double AppPottsOri::site_propensity(int i)
 {
   // events = spin flips to neighboring site different than self
   // disallow wild flips = flips to value different than all neighs
@@ -225,7 +225,7 @@ double AppPottsAniso::site_propensity(int i)
    choose and perform an event for site
 ------------------------------------------------------------------------- */
 
-void AppPottsAniso::site_event(int i, RandomPark *random)
+void AppPottsOri::site_event(int i, RandomPark *random)
 {
   int j,m,value;
 
@@ -278,15 +278,15 @@ void AppPottsAniso::site_event(int i, RandomPark *random)
 }
 
 
-double AppPottsAniso::uniform_energy(int ispin, int jspin) {
+double AppPottsOri::uniform_energy(int ispin, int jspin) {
   return 1;
 }
 
-double AppPottsAniso::uniform_mobility(int ispin, int jspin) {
+double AppPottsOri::uniform_mobility(int ispin, int jspin) {
   return 1;
 }
 
-double AppPottsAniso::lookup_energy(int ispin, int jspin) {
+double AppPottsOri::lookup_energy(int ispin, int jspin) {
   int r,c;
   c = std::min(ispin, jspin);
   r = std::max(ispin, jspin);
@@ -294,7 +294,7 @@ double AppPottsAniso::lookup_energy(int ispin, int jspin) {
   return e_table[address];
 }
 
-double AppPottsAniso::lookup_mobility(int ispin, int jspin) {
+double AppPottsOri::lookup_mobility(int ispin, int jspin) {
   int r,c;
   c = std::min(ispin, jspin);
   r = std::max(ispin, jspin);
@@ -302,7 +302,7 @@ double AppPottsAniso::lookup_mobility(int ispin, int jspin) {
   return m_table[address];
 }
 
-double *AppPottsAniso::load_table(char *filename) {
+double *AppPottsOri::load_table(char *filename) {
   // allocate sparse triangular lookup table
   // including the diagonal elements
   // lookup table should contain entries for spin == 0
