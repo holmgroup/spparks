@@ -384,8 +384,9 @@ double* AppPottsOri::read_shockley_table() {
    minimum misorientation angle misori_angle (radians)
 ------------------------------------------------------------------------- */
 double AppPottsOri::read_shockley_energy(double misori_angle) {
-  double RS_energy = 1;
-  return RS_energy;
+  double theta = misori_angle / HIGH_ANGLE;
+  double RS_energy = theta * (1 - ln(theta));
+  return min(RS_energy, 1.0);
 }
 
 /* ----------------------------------------------------------------------
@@ -515,7 +516,7 @@ double *AppPottsOri::load_euler_orientations_as_quats(char *filename) {
   std::string line;
   std::ifstream infile(filename);
   if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
-  std::getline(infile, line); // ignore the first line
+  std::getline(infile, line); // The first line is an informative description
   infile >> nspins >> line; // second line of file header is "$nspins spins"
 
   int table_size = 4 * (nspins+1);
@@ -523,9 +524,11 @@ double *AppPottsOri::load_euler_orientations_as_quats(char *filename) {
   std::memset(ori_table, 0, table_size*sizeof(*ori_table));
   
   double phi_1, Phi, phi_2 = 0.0;
+  int grain_id = 0;
   // ori_table[0-3] is reserved for spin == 0
   for (int id_spin = 1; id_spin < nspins+1; id_spin++) {
-    infile >> phi_1; infile >> Phi; infile >> phi_2;
+    infile >> grain_id; infile >> phi_1; infile >> Phi; infile >> phi_2;
+    if (grain_id != id_spin) error->all(FLERR, "Improperly specified Orientation file.");
     if (phi_1 < 0.0 || phi_1 > 360.0) error->all(FLERR,"Improperly specified Euler angle");
     if (Phi < 0.0 || Phi > 180.0) error->all(FLERR,"Improperly specified Euler angle");
     if (phi_2 < 0.0 || phi_2 > 360.0) error->all(FLERR,"Improperly specified Euler angle");
