@@ -45,29 +45,38 @@ void DiagMoment::init()
 }
 
 /* ---------------------------------------------------------------------- */
-
+/* Compute image moments of clusters. 
+     Strong assumption that clusters have unique ivalue (== grain_id)  
+     M_{ij} = \sum_x \sum_y x^i y^j I(x,y) 
+*/
 void DiagMoment::compute()
 {
   int nlocal = app->nlocal;
   if (latticeflag) applattice->comm->all();
   else appofflattice->comm->all();
 
-  /* Find a reference frame for each cluster */
-  for (int i = 0; i < nlocal; i++) {
+  /* Compute centroids (zeroth and first moments) in each processor domain,
+       respecting PBC */
+  /*
+       - choose a reference point for each cluster
+       - compute centroid in that reference frame with minimum image convention
+       - translate centroid back into simulation reference frame
+   */
+  
+  // for each owned site i:
+  for (int i = 0; i < nlocal; i++)
+    // get/set the reference site for that grain_id
     ;
-  }
-  /* Compute partial image moment sums for each cluster */
 
-  double etmp = 0.0;
-  if (latticeflag)
-    for (int i = 0; i < nlocal; i++) etmp += applattice->site_energy(i);
-  else
-    for (int i = 0; i < nlocal; i++) etmp += appofflattice->site_energy(i);
+  /* communicate partial moments to root process */
+  
+  /* Root process combines image moments for each cluster , respecting PBC */
 
-  /* communicate partial image moment sums to root process */
-  
-  /* Root process computes image moments for each cluster */
-  
+  /* if higher-order moments wanted */
+  /* Root process broadcasts cluster centroids */
+  /* Compute partial higher moments relative to centroids, respecting PBC */
+  /* communicate partial higher moments back to root process */
+  /* root process combines partial higher moments */
 
   MPI_Allreduce(&etmp,&energy,1,MPI_DOUBLE,MPI_SUM,world);
 }
