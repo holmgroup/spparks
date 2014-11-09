@@ -37,7 +37,10 @@ class DiagMoment : public Diag {
   int latticeflag;
   class AppLattice *applattice;
   class AppOffLattice *appofflattice;
-  double energy;
+  double **xyz; // site coordinates
+  tagint *idsite; // global site id
+
+  int nlocal, nghost;
 };
 
 }

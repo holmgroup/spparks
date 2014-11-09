@@ -41,7 +41,19 @@ void DiagMoment::init()
   if (latticeflag) applattice = (AppLattice *) app;
   else appofflattice = (AppOffLattice *) app;
 
-  energy = 0.0;
+  nlocal = applattice->nlocal;
+  nghost = applattice->nghost;
+  
+  xyz = app->xyz;
+  idsite = app->xyz;
+  
+  boxxlo = domain->boxxlo;
+  boxxhi = domain->boxxhi;
+  boxylo = domain->boxylo;
+  boxyhi = domain->boxyhi;
+  boxzlo = domain->boxzlo;
+  boxzhi = domain->boxzhi;
+  
 }
 
 /* ---------------------------------------------------------------------- */
@@ -62,12 +74,20 @@ void DiagMoment::compute()
        - compute centroid in that reference frame with minimum image convention
        - translate centroid back into simulation reference frame
    */
+  int* site = app->iarray[0];
+  double x, y, z = 0;
+  int grain_id = 0;
   
   // for each owned site i:
-  for (int i = 0; i < nlocal; i++)
+  for (int i = 0; i < nlocal; i++) {
     // get/set the reference site for that grain_id
-    ;
-
+    x = xyz[i][0];
+    y = xyz[i][1];
+    z = xyz[i][2];
+    grain_id = site[i];
+    
+  }
+  
   /* communicate partial moments to root process */
   
   /* Root process combines image moments for each cluster , respecting PBC */
