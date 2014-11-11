@@ -21,6 +21,7 @@ DiagStyle(moment,DiagMoment)
 
 #include "stdio.h"
 #include "diag.h"
+#include <map>
 
 namespace SPPARKS_NS {
 
@@ -32,15 +33,32 @@ class DiagMoment : public Diag {
   void compute();
   void stats(char *);
   void stats_header(char *);
+  double (DiagMoment::*x_dist)(double, double);
+  double (DiagMoment::*y_dist)(double, double);
+  double (DiagMoment::*z_dist)(double, double);
+
+  double dist(double, double);
+  double min_dist_x(double, double);
+  double min_dist_y(double, double);
+  double min_dist_z(double, double);
+
+ protected:
+  std::map<int, Grain> grains;
+  std::map<int, Grain>::iterator current_grain;
 
  private:
   int latticeflag;
   class AppLattice *applattice;
   class AppOffLattice *appofflattice;
+  
+  double x_size, y_size, z_size;
   double **xyz; // site coordinates
   tagint *idsite; // global site id
 
   int nlocal, nghost;
+  double dx, dy, dz;
+  Point3D reference;
+  
 };
 
 }

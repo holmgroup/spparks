@@ -21,6 +21,8 @@
 #include "comm_lattice.h"
 #include "comm_off_lattice.h"
 #include "error.h"
+#include "grain.h"
+#include "math.h"
 
 using namespace SPPARKS_NS;
 
@@ -47,12 +49,25 @@ void DiagMoment::init()
   xyz = app->xyz;
   idsite = app->xyz;
   
-  boxxlo = domain->boxxlo;
-  boxxhi = domain->boxxhi;
-  boxylo = domain->boxylo;
-  boxyhi = domain->boxyhi;
-  boxzlo = domain->boxzlo;
-  boxzhi = domain->boxzhi;
+  x_size = domain->boxxhi - domain->boxxlo;
+  y_size = domain->boxyhi - domain->boxylo;
+  z_size = domain->boxzhi - domain->boxzlo;
+  
+  // if domain is periodic, use minimum image convention
+  // otherwise use plain distance
+  if (domain->xperiodic == 1)
+    x_dist = &DiagMoment::min_dist_x;
+  else
+    x_dist = &DiagMoment::dist;
+  if (domain->yperiodic == 1)
+    y_dist = &DiagMoment::min_dist_y;
+  else
+    y_dist = &DiagMoment::dist;
+  if (domain->zperiodic == 1)
+    z_dist = &DiagMoment::min_dist_z;
+  else
+    z_dist = &DiagMoment::dist;
+
   
 }
 
@@ -85,10 +100,29 @@ void DiagMoment::compute()
     y = xyz[i][1];
     z = xyz[i][2];
     grain_id = site[i];
-    
+    current_grain = grains.find(grain_id);
+    if (current_grain == grains.end) {
+      Grain new_grain = new Grain(grain_id, grain_id, 0, 1, 0, NULL);
+      new_grain.reference = Point3D(x, y, z);
+      new_grain.centroid = Point3D(0, 0, 0);
+      grains[grain_id] = new_grain;
+    }
+    else {
+      reference = current_grain->reference;
+      dx = (*x_dist)(point.x, reference.x);
+      dy = (*y_dist)(point.y, reference.y);
+      dz = (*z_dist)(point.z, reference.z);
+
+      current_grain->centroid->x += dx;
+      current_grain->centroid->y += dy;
+      current_grain->centroid->z += dz;
+      current_grain->volume += 1;
+    }
   }
   
   /* communicate partial moments to root process */
+  // first move grain centroids back to simulation reference frame
+
   
   /* Root process combines image moments for each cluster , respecting PBC */
 
@@ -113,4 +147,26 @@ void DiagMoment::stats(char *strtmp)
 void DiagMoment::stats_header(char *strtmp)
 {
   sprintf(strtmp," %10s","Energy");
+}
+
+double DiagMoment::dist(float p, float p_ref) {
+  return p - p_ref;
+}
+
+double DiagMoment::min_dist_x(float p, float p_ref) {
+  double dx = p - p_ref;
+  dx = dx - x_size * floor(0.5 + (dx / x_size));
+  return dx;
+}
+
+double DiagMoment::min_dist_y(float p, float p_ref) {
+  double dy = p - p_ref;
+  dy = dy - y_size * floor(0.5 + (dy / y_size));
+  return dy;
+}
+
+double DiagMoment::min_dist_x(float p, float p_ref) {
+  double dz = p - p_ref;
+  dz = dy - z_size * floor(0.5 + (dz / z_size));
+  return dz;
 }
