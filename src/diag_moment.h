@@ -44,7 +44,7 @@ class DiagMoment : public Diag {
 
  protected:
   std::map<int, Grain> grains;
-  std::map<int, Grain>::iterator current_grain;
+  std::map<int, Grain>::iterator grain_iter;
 
  private:
   int latticeflag;

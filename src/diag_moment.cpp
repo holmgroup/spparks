@@ -89,7 +89,12 @@ void DiagMoment::compute()
        - compute centroid in that reference frame with minimum image convention
        - translate centroid back into simulation reference frame
    */
+
+  // get access to app-level data
   int* site = app->iarray[0];
+  int* numneigh = app->numneigh;
+  int** neighbor = app->neighbor;
+  
   double x, y, z = 0;
   double dx, dy, dz = 0;
   Point3D reference;
@@ -102,29 +107,108 @@ void DiagMoment::compute()
     y = xyz[i][1];
     z = xyz[i][2];
     grain_id = site[i];
-    current_grain = grains.find(grain_id);
-    if (current_grain == grains.end) {
+    grain_iter = grains.find(grain_id);
+    if (grain_iter == grains.end) {
       Grain new_grain = new Grain(grain_id, Point3D(x,y,z));
       dx = dy = dz = 0;
       grains[grain_id] = new_grain;
-      current_grain = grains.find(grain_id);
+      grain_iter = grains.find(grain_id);
     }
     else {
-      reference = current_grain->reference;
-      dx = (*x_dist)(point.x, reference.x);
-      dy = (*y_dist)(point.y, reference.y);
-      dz = (*z_dist)(point.z, reference.z);
+      reference = grain_iter.second.reference;
+      dx = (*x_dist)(x, reference.x);
+      dy = (*y_dist)(y, reference.y);
+      dz = (*z_dist)(z, reference.z);
     }
 
-    current_grain.update_centroid(Point3D(dx,dy,dz));
-    current_grain->volume += 1;
+    grain_iter.second.update_centroid(Point3D(dx,dy,dz));
+    grain_iter.second.volume += 1;
+
+    // check neighboring site ids for grain boundaries
+    for (int j = 0; j < numneigh[i], j++) {
+      if (grain_id != neigbor[i][j]) 
+	grain_iter.second.add_neigh(neighbor[i][j]);
+    }
+    
   }
   
   /* communicate partial moments to root process */
   // first move grain centroids back to simulation reference frame
+  for (auto& grain : grains) {
+    grain_id = grain.first;
+    reference = grain.second.reference;
+    Point3D delta = Point3D(-reference.x, -reference.y, -reference.z);
+    grain.second.update_centroid(delta);
+  }
 
-  
-  /* Root process combines image moments for each cluster , respecting PBC */
+  /* pack grain data into buffer */
+
+  int me_size,m,maxbuf;
+  double* dbufclust;
+  int tmp,nrecv;
+  MPI_Status status;
+  MPI_Request request;
+  int nn;
+
+  me_size = 0;
+  for (auto& grain : grains) {
+    me_size += 6+grain.second.nneigh;
+  }
+  if (me == 0) me_size = 0;
+
+  MPI_Allreduce(&me_size,&maxbuf,1,MPI_INT,MPI_MAX,world);
+
+  dbufclust = new double[maxbuf];
+
+  if (me != 0) {
+    m = 0;
+    for (auto& grain : grains) {
+      dbufclust[m++] = grain.second.ivalue;
+      dbufclust[m++] = grain.second.volume;
+      dbufclust[m++] = grain.second.centroid.x;
+      dbufclust[m++] = grain.second.centroid.y;
+      dbufclust[m++] = grain.second.centroid.z;
+      dbufclust[m++] = grain.second.nneigh;
+      for (int j = 0; j < grain.second.nneigh; j++) {
+	dbufclust[m++] = grain.second.neighlist[j];
+      }
+    }
+    
+    if (me_size != m)
+      error->one(FLERR,"Mismatch in counting for dbufclust");
+
+  }
+
+  // proc 0 pings each proc, receives it's data, adds it to list
+  // all other procs wait for ping, send their data to proc 0
+
+  if (me == 0) {
+    for (int iproc = 1; iproc < nprocs; iproc++) {
+      MPI_Irecv(dbufclust,maxbuf,MPI_DOUBLE,iproc,0,world,&request);
+      MPI_Send(&tmp,0,MPI_INT,iproc,0,world);
+      MPI_Wait(&request,&status);
+      MPI_Get_count(&status,MPI_DOUBLE,&nrecv);
+      
+      m = 0;
+      while (m < nrecv) {
+	iv = static_cast<int> (dbufclust[m++]);
+	vol = dbufclust[m++];
+	x = dbufclust[m++];
+	y = dbufclust[m++];
+	z = dbufclust[m++];
+	nn = static_cast<int> (dbufclust[m++]);
+	// add new grain, or merge respecting PBC
+	add_grain(iv,vol,x,y,z,nn,&dbufclust[m]);
+	m+=nn;
+	volsum+=vol;
+      }
+    }
+  } else {
+    MPI_Recv(&tmp,0,MPI_INT,0,0,world,&status);
+    MPI_Rsend(dbufclust,me_size,MPI_DOUBLE,0,0,world);
+  }
+
+  delete [] dbufclust;
 
   /* if higher-order moments wanted */
   /* Root process broadcasts cluster centroids */
@@ -133,6 +217,13 @@ void DiagMoment::compute()
   /* root process combines partial higher moments */
 
   MPI_Allreduce(&etmp,&energy,1,MPI_DOUBLE,MPI_SUM,world);
+}
+
+
+/* ---------------------------------------------------------------------- */
+void DiagMoment::add_grain(int iv, double vol, double x, double y, double z, int nn, double* neighs) {
+  // if grain is already here, merge it
+  // else create a new grain.
 }
 
 /* ---------------------------------------------------------------------- */
