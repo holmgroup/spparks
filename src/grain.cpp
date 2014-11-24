@@ -23,6 +23,8 @@ Grain::Grain(int id, int iv, double dv, double vol,
   ivalue = iv;
   dvalue = dv;
   volume = vol;
+  reference = Point3D(0,0,0);
+  centroid = Point3D(0,0,0);
   nneigh = nn;
   if (nneigh == 0) {
     neighlist = NULL;
@@ -33,6 +35,19 @@ Grain::Grain(int id, int iv, double dv, double vol,
     }
   }
 }
+
+/* Create an 'empty' grain data structure */
+Grain::Grain(int grain_id, Point3D ref) {
+  global_id = grain_id;
+  ivalue = grain_id;
+  dvalue = 0;
+  volume = 0;
+  reference = ref;
+  centroid = Point3D(0,0,0);
+  nneigh = 0;
+  neighlist = NULL;
+}
+
 
 // Define assigment operator.
 // Because memory is allocated before
@@ -67,7 +82,13 @@ void Grain::add_neigh(int id) {
   neighlist = (int*) realloc(neighlist,nneigh*sizeof(int));
   neighlist[nneigh-1] = id;
 }
-  
+
+void Grain::update_centroid(Point3D delta) {
+  centroid.x += delta.x;
+  centroid.y += delta.y;
+  centroid.z += delta.z;
+}
+
 void Grain::print(FILE* fp) {
   fprintf(fp,"%d %d %g %g %d ",global_id,ivalue,dvalue,volume,nneigh);
   for (int ineigh = 0; ineigh < nneigh; ineigh++) {

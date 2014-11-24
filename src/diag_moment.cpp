@@ -91,6 +91,8 @@ void DiagMoment::compute()
    */
   int* site = app->iarray[0];
   double x, y, z = 0;
+  double dx, dy, dz = 0;
+  Point3D reference;
   int grain_id = 0;
   
   // for each owned site i:
@@ -102,22 +104,20 @@ void DiagMoment::compute()
     grain_id = site[i];
     current_grain = grains.find(grain_id);
     if (current_grain == grains.end) {
-      Grain new_grain = new Grain(grain_id, grain_id, 0, 1, 0, NULL);
-      new_grain.reference = Point3D(x, y, z);
-      new_grain.centroid = Point3D(0, 0, 0);
+      Grain new_grain = new Grain(grain_id, Point3D(x,y,z));
+      dx = dy = dz = 0;
       grains[grain_id] = new_grain;
+      current_grain = grains.find(grain_id);
     }
     else {
       reference = current_grain->reference;
       dx = (*x_dist)(point.x, reference.x);
       dy = (*y_dist)(point.y, reference.y);
       dz = (*z_dist)(point.z, reference.z);
-
-      current_grain->centroid->x += dx;
-      current_grain->centroid->y += dy;
-      current_grain->centroid->z += dz;
-      current_grain->volume += 1;
     }
+
+    current_grain.update_centroid(Point3D(dx,dy,dz));
+    current_grain->volume += 1;
   }
   
   /* communicate partial moments to root process */

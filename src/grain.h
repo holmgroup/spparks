@@ -30,6 +30,7 @@ class Grain {
   int* neighlist;
 
   Grain(int, int, double, double, int, double*);
+  Grain(int, Point3D);
   Grain& operator=(const Grain&);
   ~Grain();
   void add_neigh(int);

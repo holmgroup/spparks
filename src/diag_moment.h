@@ -56,8 +56,6 @@ class DiagMoment : public Diag {
   tagint *idsite; // global site id
 
   int nlocal, nghost;
-  double dx, dy, dz;
-  Point3D reference;
   
 };
 
