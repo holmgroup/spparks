@@ -25,7 +25,7 @@ diag_style       energy
 temperature	 0.0
 
 stats            10.0
-dump             1 text 10.0 dump.potts
+dump             1 text 10.0 dump*.potts
 diag_style       cluster delt 1.0 stats no logfreq 9 10.0 filename cluster.dat
 
 run              100.0

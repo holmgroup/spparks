@@ -216,7 +216,9 @@ void DiagMoment::compute()
   /* communicate partial higher moments back to root process */
   /* root process combines partial higher moments */
 
-  MPI_Allreduce(&etmp,&energy,1,MPI_DOUBLE,MPI_SUM,world);
+  if (me == 0) {
+    // serialize the grain network to a dump file.
+  }
 }
 
 
@@ -224,6 +226,21 @@ void DiagMoment::compute()
 void DiagMoment::add_grain(int iv, double vol, double x, double y, double z, int nn, double* neighs) {
   // if grain is already here, merge it
   // else create a new grain.
+  grain_iter = grains.find(iv);
+  if (grain_iter == grains.end) {
+    Grain new_grain = new Grain(grain_id, Point3D(x,y,z));
+
+    grains[grain_id] = new_grain;
+  }
+  else {
+    grain_iter.second.volume += vol;
+    // merge centroid
+    
+    // merge neighbor lists
+    for (int i = 0; i < nn; i++) 
+      grain_iter.second.add_neigh(neighs[i]);
+  }
+
 }
 
 /* ---------------------------------------------------------------------- */
