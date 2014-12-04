@@ -34,6 +34,23 @@ DiagMoment::DiagMoment(SPPARKS *spk, int narg, char **arg) :
   if (app->appclass == App::LATTICE) latticeflag = 1;
   else if (app->appclass == App::OFF_LATTICE) latticeflag = 0;
   else error->all(FLERR,"Diag style incompatible with app style");
+  int iarg = iarg_child;
+  while (iarg < narg) {
+    if (strcmp(arg[iarg],"filename") == 0) {
+      iarg++;
+      if (iarg < narg) {
+	if (me == 0) {
+	  fpdump = fopen(arg[iarg],"w");
+	  if (!fpdump) error->one(FLERR,"Cannot open diag_style cluster output file");
+	}
+      } else error->all(FLERR,"Illegal diag_style cluster command");
+    }
+  }
+}
+
+DiagMoment::~DiagMoment() {
+  if (me == 0)
+    if (fpdump) fclose(fpdump);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -67,7 +84,6 @@ void DiagMoment::init()
     z_dist = &DiagMoment::min_dist_z;
   else
     z_dist = &DiagMoment::dist;
-
   
 }
 
@@ -216,7 +232,25 @@ void DiagMoment::compute()
   /* communicate partial higher moments back to root process */
   /* root process combines partial higher moments */
 
-  // save to file
+  // root process saves to file
+  if (me == 0) {
+    if (fpdump) {
+      fprintf(fpdump, '------------------------\n');
+      fprintf(fpdump, 'ivalue volume Cent_x Cent_y Cent_z NumNeighs NeighList\n');
+      for (auto& grain : grains) {
+	fprintf(fpdump, "%d %f %f %f %f %d",
+		grain.second.ivalue,
+		grain.second.volume,
+		grain.second.centroid.x,
+		grain.second.centroid.y,
+		grain.second.centroid.z,
+		grain.second.nneigh);
+	for (int ii = 0; ii < grain.second.nneigh; ii++)
+	  fprintf(fpdump, " %d", grain.second.neighlist[ii]);
+	fprintf(fpdump, "\n");
+      }
+    }
+  }
 }
 
 

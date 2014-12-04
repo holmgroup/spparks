@@ -28,7 +28,7 @@ namespace SPPARKS_NS {
 class DiagMoment : public Diag {
  public:
   DiagMoment(class SPPARKS *, int, char **);
-  ~DiagMoment() {}
+  virtual ~DiagMoment();
   void init();
   void compute();
   void stats(char *);
@@ -46,11 +46,13 @@ class DiagMoment : public Diag {
  protected:
   std::map<int, Grain> grains;
   std::map<int, Grain>::iterator grain_iter;
-
+  FILE *fpdump;
+  
  private:
   int latticeflag;
   class AppLattice *applattice;
   class AppOffLattice *appofflattice;
+
   
   double x_size, y_size, z_size;
   double **xyz; // site coordinates
