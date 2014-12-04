@@ -73,7 +73,7 @@ void DiagMoment::init()
 
 /* ---------------------------------------------------------------------- */
 /* Compute image moments of clusters. 
-     Strong assumption that clusters have unique ivalue (== grain_id)  
+     Strong assumption that clusters have unique ivalue (ivalue == grain_id)  
      M_{ij} = \sum_x \sum_y x^i y^j I(x,y) 
 */
 void DiagMoment::compute()
@@ -132,15 +132,15 @@ void DiagMoment::compute()
     
   }
   
-  /* communicate partial moments to root process */
-  // first move grain centroids back to simulation reference frame
+  // move partial grain centroids back to simulation reference frame
   for (auto& grain : grains) {
     grain_id = grain.first;
     reference = grain.second.reference;
     Point3D delta = Point3D(-reference.x, -reference.y, -reference.z);
     grain.second.update_centroid(delta);
   }
-
+  
+  /* communicate partial moments to root process */
   /* pack grain data into buffer */
 
   int me_size,m,maxbuf;
@@ -198,7 +198,7 @@ void DiagMoment::compute()
 	z = dbufclust[m++];
 	nn = static_cast<int> (dbufclust[m++]);
 	// add new grain, or merge respecting PBC
-	add_grain(iv,vol,x,y,z,nn,&dbufclust[m]);
+	merge_grain(iv,vol,x,y,z,nn,&dbufclust[m]);
 	m+=nn;
 	volsum+=vol;
       }
@@ -216,14 +216,41 @@ void DiagMoment::compute()
   /* communicate partial higher moments back to root process */
   /* root process combines partial higher moments */
 
-  MPI_Allreduce(&etmp,&energy,1,MPI_DOUBLE,MPI_SUM,world);
+  // save to file
 }
 
 
 /* ---------------------------------------------------------------------- */
-void DiagMoment::add_grain(int iv, double vol, double x, double y, double z, int nn, double* neighs) {
-  // if grain is already here, merge it
-  // else create a new grain.
+void DiagMoment::merge_grain(int iv, double vol, double x, double y, double z, int nn, double* neighs) {
+  // if grain does not exist, create a new grain.
+  grain_iter = grains.find(iv);
+  if (grain_iter == grains.end) {
+    Grain new_grain = new Grain(iv, Point3D(x,y,z));
+    new_grain.volume = vol;
+    new_grain.centroid = Point3D(x,y,z);
+    new_grain.nneigh = nn;
+    for (int i = 0; i < nn; i++)
+      new_grain.add_neigh(neighs[i]);
+    grains[iv] = new_grain;
+  }
+  // else merge it
+  else {
+    double new_volume = grain_iter.second.volume + vol;
+    double dx, dy, dz;
+    // merge centroids
+    dx = x_dist(x, grain_iter.second.centroid.x);
+    grain_iter.second.centroid.x += (vol/new_volume)*dx;
+    dy = y_dist(y, grain_iter.second.centroid.y);
+    grain_iter.second.centroid.y += (vol/new_volume)*dy;
+    dz = z_dist(z, grain_iter.second.centroid.z);
+    grain_iter.second.centroid.z += (vol/new_volume)*dz;
+
+    // merge neighbor list
+    for (int i = 0; i < nn; i++)
+      grain_iter.second.add_neigh(neighs[i]);
+    // merge grain size
+    grain_iter.second.volume = new_volume;
+  }
 }
 
 /* ---------------------------------------------------------------------- */

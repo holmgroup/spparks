@@ -41,7 +41,8 @@ class DiagMoment : public Diag {
   double min_dist_x(double, double);
   double min_dist_y(double, double);
   double min_dist_z(double, double);
-
+  void merge_grain(int,int,double,double,double,int,double*);
+  
  protected:
   std::map<int, Grain> grains;
   std::map<int, Grain>::iterator grain_iter;
