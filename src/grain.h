@@ -14,7 +14,7 @@
 #ifndef SPK_GRAIN_H
 #define SPK_GRAIN_H
 
-#include float3.h
+#include "point3d.h"
 
 namespace SPPARKS_NS {
 
@@ -34,6 +34,7 @@ class Grain {
   Grain& operator=(const Grain&);
   ~Grain();
   void add_neigh(int);
+  void update_centroid(Point3D);
   void print(FILE*);
 };
 
