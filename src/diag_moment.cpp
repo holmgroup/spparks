@@ -154,7 +154,11 @@ void DiagMoment::compute()
   // move partial grain centroids back to simulation reference frame
   for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
     reference = grain_iter->second.reference;
-    Point3D delta = Point3D(-reference.x, -reference.y, -reference.z);
+    // first divide by area to get actual centroid
+    grain_iter->second.centroid.x = grain_iter->second.centroid.x / grain_iter->second.volume;
+    grain_iter->second.centroid.y = grain_iter->second.centroid.y / grain_iter->second.volume;
+    grain_iter->second.centroid.z = grain_iter->second.centroid.z / grain_iter->second.volume;
+    Point3D delta = Point3D(reference.x, reference.y, reference.z);
     grain_iter->second.update_centroid(delta);
   }
   
@@ -260,7 +264,6 @@ void DiagMoment::compute()
 
 
 /* ---------------------------------------------------------------------- */
-
 void DiagMoment::merge_grain(int iv, double vol, double x, double y, double z, int nn, double* neighs) {
   // if grain does not exist, create a new grain.
   grain_iter = grains.find(iv);
@@ -311,19 +314,19 @@ double DiagMoment::dist(double p, double p_ref) {
 }
 
 double DiagMoment::min_dist_x(double p, double p_ref) {
-  double dx = p - p_ref;
-  dx = dx - x_size * floor(0.5 + (dx / x_size));
+  double dx = dist(p, p_ref);
+  dx = dx - (x_size * floor(0.5 + (dx / x_size)));
   return dx;
 }
 
 double DiagMoment::min_dist_y(double p, double p_ref) {
-  double dy = p - p_ref;
-  dy = dy - y_size * floor(0.5 + (dy / y_size));
+  double dy = dist(p, p_ref);
+  dy = dy - (y_size * floor(0.5 + (dy / y_size)));
   return dy;
 }
 
 double DiagMoment::min_dist_z(double p, double p_ref) {
-  double dz = p - p_ref;
-  dz = dz - z_size * floor(0.5 + (dz / z_size));
+  double dz = dist(p, p_ref);
+  dz = dz - (z_size * floor(0.5 + (dz / z_size)));
   return dz;
 }
