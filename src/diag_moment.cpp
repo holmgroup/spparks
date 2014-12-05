@@ -254,6 +254,7 @@ void DiagMoment::compute()
 
 
 /* ---------------------------------------------------------------------- */
+
 void DiagMoment::merge_grain(int iv, double vol, double x, double y, double z, int nn, double* neighs) {
   // if grain does not exist, create a new grain.
   grain_iter = grains.find(iv);
