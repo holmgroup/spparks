@@ -52,8 +52,7 @@ class DiagMoment : public Diag {
  private:
   int latticeflag;
   class AppLattice *applattice;
-  class AppOffLattice *appofflattice;
-
+  class CommLattice *comm;
   
   double x_size, y_size, z_size;
   double **xyz; // site coordinates

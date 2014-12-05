@@ -18,7 +18,7 @@
 using namespace SPPARKS_NS;
 
 Grain::Grain(int id, int iv, double dv, double vol,
-		 int nn, double* neighs) {
+		 int nn, int* neighs) {
   global_id = id;
   ivalue = iv;
   dvalue = dv;
@@ -48,6 +48,22 @@ Grain::Grain(int grain_id, Point3D ref) {
   neighlist = NULL;
 }
 
+/* Copy constructor */
+Grain::Grain(const Grain& g) {
+  global_id = g.global_id;
+  ivalue = g.ivalue;
+  dvalue = g.dvalue;
+  volume = g.volume;
+  nneigh = g.nneigh;
+  if (nneigh == 0) {
+    neighlist = NULL;
+  } else {
+    neighlist = (int*) malloc(nneigh*sizeof(int));
+    for (int i = 0; i < nneigh; i++) {
+      neighlist[i] = g.neighlist[i];
+    }
+  }
+}
 
 // Define assigment operator.
 // Because memory is allocated before
@@ -80,6 +96,9 @@ void Grain::add_neigh(int id) {
   }
   nneigh++;
   neighlist = (int*) realloc(neighlist,nneigh*sizeof(int));
+  if (neighlist == NULL)
+    fprintf(stdout,"problem with realloc\n");
+  // fprintf(stdout, "grain %d: nneigh = %d, neigh %d\n", ivalue, nneigh, id);
   neighlist[nneigh-1] = id;
 }
 

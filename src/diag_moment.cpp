@@ -44,10 +44,12 @@ DiagMoment::DiagMoment(SPPARKS *spk, int narg, char **arg) :
 	}
       } else error->all(FLERR,"Illegal diag_style cluster command");
     }
+    iarg++;
   }
 }
 
 DiagMoment::~DiagMoment() {
+  grains.clear();
   if (me == 0)
     if (fpdump) fclose(fpdump);
 }
@@ -67,6 +69,7 @@ void DiagMoment::init()
   x_size = domain->boxxhi - domain->boxxlo;
   y_size = domain->boxyhi - domain->boxylo;
   z_size = domain->boxzhi - domain->boxzlo;
+
   
   // if domain is periodic, use minimum image convention
   // otherwise use plain distance
@@ -82,7 +85,7 @@ void DiagMoment::init()
     z_dist = &DiagMoment::min_dist_z;
   else
     z_dist = &DiagMoment::dist;
-  
+
 }
 
 /* ---------------------------------------------------------------------- */
@@ -92,8 +95,9 @@ void DiagMoment::init()
 */
 void DiagMoment::compute()
 {
+  grains.clear();
   int nlocal = app->nlocal;
-  if (latticeflag) applattice->comm->all();
+  applattice->comm->all();
 
   /* Compute centroids (zeroth and first moments) in each processor domain,
        respecting PBC */
@@ -138,16 +142,17 @@ void DiagMoment::compute()
     grain_iter->second.volume += 1;
 
     // check neighboring site ids for grain boundaries
+    int j_id = 0;
     for (int j = 0; j < numneigh[i]; j++) {
-      if (grain_id != neighbor[i][j]) 
-	grain_iter->second.add_neigh(neighbor[i][j]);
+      j_id = site[neighbor[i][j]];
+      if (grain_id != j_id) 
+	grain_iter->second.add_neigh(j_id);
     }
     
   }
   
   // move partial grain centroids back to simulation reference frame
   for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
-    grain_id = grain_iter->first;
     reference = grain_iter->second.reference;
     Point3D delta = Point3D(-reference.x, -reference.y, -reference.z);
     grain_iter->second.update_centroid(delta);
@@ -235,6 +240,7 @@ void DiagMoment::compute()
   if (me == 0) {
     if (fpdump) {
       fprintf(fpdump, "------------------------\n");
+      fprintf(fpdump, "%d grains\n", grains.size());
       fprintf(fpdump, "ivalue volume Cent_x Cent_y Cent_z NumNeighs NeighList\n");
       for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
 	fprintf(fpdump, "%d %f %f %f %f %d",
@@ -262,9 +268,8 @@ void DiagMoment::merge_grain(int iv, double vol, double x, double y, double z, i
     Grain new_grain = Grain(iv, Point3D(x,y,z));
     new_grain.volume = vol;
     new_grain.centroid = Point3D(x,y,z);
-    new_grain.nneigh = nn;
     for (int i = 0; i < nn; i++)
-      new_grain.add_neigh(neighs[i]);
+      new_grain.add_neigh(static_cast<int>(neighs[i]));
     grains.insert(std::make_pair(iv, new_grain));
   }
   // else merge it
@@ -281,7 +286,7 @@ void DiagMoment::merge_grain(int iv, double vol, double x, double y, double z, i
 
     // merge neighbor list
     for (int i = 0; i < nn; i++)
-      grain_iter->second.add_neigh(neighs[i]);
+      grain_iter->second.add_neigh(static_cast<int>(neighs[i]));
     // merge grain size
     grain_iter->second.volume = new_volume;
   }
@@ -291,14 +296,14 @@ void DiagMoment::merge_grain(int iv, double vol, double x, double y, double z, i
 
 void DiagMoment::stats(char *strtmp)
 {
-  ;
+  sprintf(strtmp," %10d", grains.size());
 }
 
 /* ---------------------------------------------------------------------- */
 
 void DiagMoment::stats_header(char *strtmp)
 {
-  sprintf(strtmp," %10s","Energy");
+  sprintf(strtmp," %10s","Ngrains");
 }
 
 double DiagMoment::dist(double p, double p_ref) {

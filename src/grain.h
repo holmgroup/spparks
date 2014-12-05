@@ -29,8 +29,9 @@ class Grain {
   int nneigh;
   int* neighlist;
 
-  Grain(int, int, double, double, int, double*);
+  Grain(int, int, double, double, int, int*);
   Grain(int, Point3D);
+  Grain(const Grain&);
   Grain& operator=(const Grain&);
   ~Grain();
   void add_neigh(int);
