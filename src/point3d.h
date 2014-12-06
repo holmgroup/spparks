@@ -18,12 +18,12 @@ namespace SPPARKS_NS {
 
 class Point3D {
  public:
-  float x;
-  float y;
-  float z;
+  double x;
+  double y;
+  double z;
 
   Point3D();
-  Point3D(float,float,float);
+  Point3D(double,double,double);
 };
 
 }

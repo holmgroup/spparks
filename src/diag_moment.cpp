@@ -129,16 +129,13 @@ void DiagMoment::compute()
     grain_iter = grains.find(grain_id);
     if (grain_iter == grains.end()) {
       Grain new_grain = Grain(grain_id, Point3D(x,y,z));
-      dx = dy = dz = 0;
       grains.insert(std::make_pair(grain_id,new_grain));
       grain_iter = grains.find(grain_id);
     }
-    else {
-      reference = grain_iter->second.reference;
-      dx = (this->*x_dist)(x, reference.x);
-      dy = (this->*y_dist)(y, reference.y);
-      dz = (this->*z_dist)(z, reference.z);
-    }
+    reference = grain_iter->second.reference;
+    dx = (this->*x_dist)(x, reference.x);
+    dy = (this->*y_dist)(y, reference.y);
+    dz = (this->*z_dist)(z, reference.z);
 
     grain_iter->second.update_centroid(Point3D(dx,dy,dz));
     grain_iter->second.volume += 1;
@@ -248,6 +245,9 @@ void DiagMoment::compute()
       fprintf(fpdump, "%d grains\n", grains.size());
       fprintf(fpdump, "ivalue volume Cent_x Cent_y Cent_z NumNeighs NeighList\n");
       for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
+	grain_iter->second.centroid.x -= x_size * floor(grain_iter->second.centroid.x / x_size);
+	grain_iter->second.centroid.y -= y_size * floor(grain_iter->second.centroid.y / y_size);
+	grain_iter->second.centroid.z -= z_size * floor(grain_iter->second.centroid.z / z_size);
 	fprintf(fpdump, "%d %f %f %f %f %d",
 		grain_iter->second.ivalue,
 		grain_iter->second.volume,

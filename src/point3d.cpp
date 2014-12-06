@@ -22,7 +22,7 @@ Point3D::Point3D() {
   z = 0;
 }
 
-Point3D::Point3D(float x_i, float y_i, float z_i) {
+Point3D::Point3D(double x_i, double y_i, double z_i) {
   x = x_i;
   y = y_i;
   z = z_i;
