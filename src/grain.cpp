@@ -75,6 +75,7 @@ Grain& Grain::operator=(const Grain& g) {
   ivalue = g.ivalue;
   dvalue = g.dvalue;
   volume = g.volume;
+  centroid = g.centroid;
   nneigh = g.nneigh;
   if (nneigh == 0) {
     neighlist = NULL;

@@ -77,10 +77,12 @@ void DiagMoment::init()
     x_dist = &DiagMoment::min_dist_x;
   else
     x_dist = &DiagMoment::dist;
+
   if (domain->yperiodic == 1)
     y_dist = &DiagMoment::min_dist_y;
   else
     y_dist = &DiagMoment::dist;
+
   if (domain->zperiodic == 1)
     z_dist = &DiagMoment::min_dist_z;
   else
@@ -148,7 +150,6 @@ void DiagMoment::compute()
       if (grain_id != j_id) 
 	grain_iter->second.add_neigh(j_id);
     }
-    
   }
   
   // move partial grain centroids back to simulation reference frame
@@ -268,7 +269,7 @@ void DiagMoment::merge_grain(int iv, double vol, double x, double y, double z, i
   // if grain does not exist, create a new grain.
   grain_iter = grains.find(iv);
   if (grain_iter == grains.end()) {
-    Grain new_grain = Grain(iv, Point3D(x,y,z));
+    Grain new_grain = Grain(iv, Point3D(0,0,0));
     new_grain.volume = vol;
     new_grain.centroid = Point3D(x,y,z);
     for (int i = 0; i < nn; i++)
