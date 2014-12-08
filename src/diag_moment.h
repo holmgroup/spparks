@@ -39,6 +39,7 @@ class DiagMoment : public Diag {
   double (DiagMoment::*z_dist)(double, double);
 
   double dist(double, double);
+  double min_dist(double, double, double);
   double min_dist_x(double, double);
   double min_dist_y(double, double);
   double min_dist_z(double, double);

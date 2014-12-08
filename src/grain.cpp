@@ -55,6 +55,7 @@ Grain::Grain(const Grain& g) {
   dvalue = g.dvalue;
   volume = g.volume;
   nneigh = g.nneigh;
+  reference = g.reference;
   centroid = g.centroid;
   if (nneigh == 0) {
     neighlist = NULL;

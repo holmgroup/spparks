@@ -128,16 +128,17 @@ void DiagMoment::compute()
     grain_id = site[i];
     grain_iter = grains.find(grain_id);
     if (grain_iter == grains.end()) {
-      Grain new_grain = Grain(grain_id, Point3D(x,y,z));
-      grains.insert(std::make_pair(grain_id,new_grain));
+      // instantiate a grain, then call the copy constructor in make_pair...
+      Grain tmp_grain = Grain(grain_id, Point3D(x,y,z));
+      grains.insert(std::make_pair(grain_id,tmp_grain));
       grain_iter = grains.find(grain_id);
     }
     reference = grain_iter->second.reference;
     dx = (this->*x_dist)(x, reference.x);
     dy = (this->*y_dist)(y, reference.y);
     dz = (this->*z_dist)(z, reference.z);
-
     grain_iter->second.update_centroid(Point3D(dx,dy,dz));
+
     grain_iter->second.volume += 1;
 
     // check neighboring site ids for grain boundaries
@@ -310,24 +311,32 @@ void DiagMoment::stats_header(char *strtmp)
   sprintf(strtmp," %10s","Ngrains");
 }
 
-double DiagMoment::dist(double p, double p_ref) {
+inline double DiagMoment::dist(double p, double p_ref) {
   return p - p_ref;
 }
 
-double DiagMoment::min_dist_x(double p, double p_ref) {
-  double dx = dist(p, p_ref);
-  dx = dx - (x_size * floor(0.5 + (dx / x_size)));
-  return dx;
+inline double DiagMoment::min_dist(double p, double p_ref, double p_size) {
+  double delta = dist(p,p_ref);
+  delta = delta - (p_size * round(delta / p_size));
+  return delta;
 }
 
-double DiagMoment::min_dist_y(double p, double p_ref) {
-  double dy = dist(p, p_ref);
-  dy = dy - (y_size * floor(0.5 + (dy / y_size)));
-  return dy;
+
+// inline double DiagMoment::min_dist(double p, double p_ref, double p_size) {
+//   double delta = dist(p,p_ref);
+//   if (abs(delta) > 0.5*p_size)
+//     delta = delta - copysign(p_size,delta);
+//   return delta;
+// }
+
+double DiagMoment::min_dist_x(double x, double x_ref) {
+  return min_dist(x, x_ref, x_size);
 }
 
-double DiagMoment::min_dist_z(double p, double p_ref) {
-  double dz = dist(p, p_ref);
-  dz = dz - (z_size * floor(0.5 + (dz / z_size)));
-  return dz;
+double DiagMoment::min_dist_y(double y, double y_ref) {
+  return min_dist(y, y_ref, y_size);
+}
+
+double DiagMoment::min_dist_z(double z, double z_ref) {
+  return min_dist(z, z_ref, z_size);
 }
