@@ -126,13 +126,15 @@ void DiagMoment::compute()
     y = xyz[i][1];
     z = xyz[i][2];
     grain_id = site[i];
+
+    // get the current grain, or insert a new grain
     grain_iter = grains.find(grain_id);
     if (grain_iter == grains.end()) {
-      // instantiate a grain, then call the copy constructor in make_pair...
-      grains.insert(std::make_pair(grain_id, Grain(grain_id, Point3D(x,y,z)) ));
-      grain_iter = grains.find(grain_id);
+      grain_iter = grains.insert(grain_iter, std::make_pair(grain_id,
+							    Grain(grain_id, Point3D(x,y,z)) ));
     }
     Grain& grain = grain_iter->second;
+
     ref = grain.reference;
     dx = (this->*x_dist)(x, ref.x);
     dy = (this->*y_dist)(y, ref.y);
