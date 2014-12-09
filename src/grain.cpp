@@ -17,11 +17,8 @@
 
 using namespace SPPARKS_NS;
 
-Grain::Grain(int id, int iv, double dv, double vol,
-		 int nn, int* neighs) {
-  global_id = id;
-  ivalue = iv;
-  dvalue = dv;
+Grain::Grain(int id, double vol, int nn, int* neighs) {
+  id = id;
   volume = vol;
   reference = Point3D(0,0,0);
   centroid = Point3D(0,0,0);
@@ -38,9 +35,7 @@ Grain::Grain(int id, int iv, double dv, double vol,
 
 /* Create an 'empty' grain data structure */
 Grain::Grain(int grain_id, Point3D ref) {
-  global_id = grain_id;
-  ivalue = grain_id;
-  dvalue = 0;
+  id = grain_id;
   volume = 0;
   reference = ref;
   centroid = Point3D(0,0,0);
@@ -50,9 +45,7 @@ Grain::Grain(int grain_id, Point3D ref) {
 
 /* Copy constructor */
 Grain::Grain(const Grain& g) {
-  global_id = g.global_id;
-  ivalue = g.ivalue;
-  dvalue = g.dvalue;
+  id = g.id;
   volume = g.volume;
   nneigh = g.nneigh;
   reference = g.reference;
@@ -72,9 +65,7 @@ Grain::Grain(const Grain& g) {
 // the object is initialized, can not use constructor.
 
 Grain& Grain::operator=(const Grain& g) {
-  global_id = g.global_id;
-  ivalue = g.ivalue;
-  dvalue = g.dvalue;
+  id = g.id;
   volume = g.volume;
   centroid = g.centroid;
   nneigh = g.nneigh;
@@ -112,7 +103,7 @@ void Grain::update_centroid(Point3D delta) {
 }
 
 void Grain::print(FILE* fp) {
-  fprintf(fp,"%d %d %g %g %d ",global_id,ivalue,dvalue,volume,nneigh);
+  fprintf(fp,"%d %g %d ",id,volume,nneigh);
   for (int ineigh = 0; ineigh < nneigh; ineigh++) {
     fprintf(fp,"%d ",neighlist[ineigh]);
   }

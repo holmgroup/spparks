@@ -186,7 +186,7 @@ void DiagMoment::compute()
     m = 0;
     for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
       Grain& grain = grain_iter->second;
-      dbufclust[m++] = grain.ivalue;
+      dbufclust[m++] = grain.id;
       dbufclust[m++] = grain.volume;
       dbufclust[m++] = grain.centroid.x;
       dbufclust[m++] = grain.centroid.y;
@@ -246,14 +246,14 @@ void DiagMoment::compute()
     if (fpdump) {
       fprintf(fpdump, "------------------------\n");
       fprintf(fpdump, "%d grains\n", grains.size());
-      fprintf(fpdump, "ivalue volume Cent_x Cent_y Cent_z NumNeighs NeighList\n");
+      fprintf(fpdump, "id volume Cent_x Cent_y Cent_z NumNeighs NeighList\n");
       for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
 	Grain& grain = grain_iter->second;
 	grain.centroid.x -= x_size * floor(grain.centroid.x / x_size);
 	grain.centroid.y -= y_size * floor(grain.centroid.y / y_size);
 	grain.centroid.z -= z_size * floor(grain.centroid.z / z_size);
 	fprintf(fpdump, "%d %f %f %f %f %d",
-		grain.ivalue,
+		grain.id,
 		grain.volume,
 		grain.centroid.x,
 		grain.centroid.y,

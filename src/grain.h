@@ -20,16 +20,14 @@ namespace SPPARKS_NS {
 
 class Grain {
  public:
-  int global_id;
-  int ivalue;
-  double dvalue;
+  int id;
   double volume;
   Point3D reference;
   Point3D centroid;
   int nneigh;
   int* neighlist;
 
-  Grain(int, int, double, double, int, int*);
+  Grain(int, double, int, int*);
   Grain(int, Point3D);
   Grain(const Grain&);
   Grain& operator=(const Grain&);
