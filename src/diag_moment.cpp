@@ -58,7 +58,8 @@ DiagMoment::~DiagMoment() {
 
 void DiagMoment::init()
 {
-  if (latticeflag) applattice = (AppLattice *) app;
+  if (latticeflag)
+    applattice = (AppLattice *) app;
 
   nlocal = applattice->nlocal;
   nghost = applattice->nghost;
@@ -69,7 +70,6 @@ void DiagMoment::init()
   x_size = domain->boxxhi - domain->boxxlo;
   y_size = domain->boxyhi - domain->boxylo;
   z_size = domain->boxzhi - domain->boxzlo;
-
   
   // if domain is periodic, use minimum image convention
   // otherwise use plain distance
@@ -119,9 +119,9 @@ void DiagMoment::compute()
   Point3D ref;
   int grain_id = 0;
   
-  // for each owned site i:
+  // compute partial sums for grain centroids
+  // also build a list of grain neighbors
   for (int i = 0; i < nlocal; i++) {
-    // get/set the reference site for that grain_id
     x = xyz[i][0];
     y = xyz[i][1];
     z = xyz[i][2];
@@ -130,17 +130,17 @@ void DiagMoment::compute()
     // get the current grain, or insert a new grain
     grain_iter = grains.find(grain_id);
     if (grain_iter == grains.end()) {
-      grain_iter = grains.insert(grain_iter, std::make_pair(grain_id,
-							    Grain(grain_id, Point3D(x,y,z)) ));
+      Grain new_grain = Grain(grain_id, Point3D(x,y,z));
+      grain_iter = grains.insert(grain_iter,
+				 std::make_pair(grain_id, new_grain));
     }
     Grain& grain = grain_iter->second;
 
-    ref = grain.reference;
-    dx = (this->*x_dist)(x, ref.x);
-    dy = (this->*y_dist)(y, ref.y);
-    dz = (this->*z_dist)(z, ref.z);
+    // increment volume and centroid partial sum
+    dx = (this->*x_dist)(x, grain.reference.x);
+    dy = (this->*y_dist)(y, grain.reference.y);
+    dz = (this->*z_dist)(z, grain.reference.z);
     grain.update_centroid(Point3D(dx,dy,dz));
-
     grain.volume += 1;
 
     // check neighboring site ids for grain boundaries
@@ -152,16 +152,15 @@ void DiagMoment::compute()
     }
   }
   
-  // move partial grain centroids back to simulation reference frame
+  // reduce centroid partial sums to centroids, move them to simulation reference frame
   for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
     Grain& grain = grain_iter->second;
     ref = grain.reference;
-    // first divide by area to get actual centroid
+    // first divide by volume to get actual centroid
     grain.centroid.x = grain.centroid.x / grain.volume;
     grain.centroid.y = grain.centroid.y / grain.volume;
     grain.centroid.z = grain.centroid.z / grain.volume;
-    Point3D delta = Point3D(ref.x, ref.y, ref.z);
-    grain.update_centroid(delta);
+    grain.update_centroid(grain.reference);
   }
   
   /* communicate partial moments to root process */
@@ -201,7 +200,7 @@ void DiagMoment::compute()
     
     if (me_size != m)
       error->one(FLERR,"Mismatch in counting for dbufclust");
-
+    
   }
 
   // proc 0 pings each proc, receives it's data, adds it to list
@@ -272,18 +271,12 @@ void DiagMoment::compute()
 
 /* ---------------------------------------------------------------------- */
 void DiagMoment::merge_grain(int iv, double vol, double x, double y, double z, int nn, double* neighs) {
-  // if grain does not exist, create a new grain.
+  
+  // 
   grain_iter = grains.find(iv);
-  if (grain_iter == grains.end()) {
-    Grain new_grain = Grain(iv, Point3D(0,0,0));
-    new_grain.volume = vol;
-    new_grain.centroid = Point3D(x,y,z);
-    for (int i = 0; i < nn; i++)
-      new_grain.add_neigh(static_cast<int>(neighs[i]));
-    grains.insert(std::make_pair(iv, new_grain));
-  }
-  // else merge it
-  else {
+
+  // merge incoming grain with pre-existing grain
+  if (grain_iter != grains.end()) {
     Grain& grain = grain_iter->second;
     double new_volume = grain.volume + vol;
     double dx, dy, dz;
@@ -300,6 +293,17 @@ void DiagMoment::merge_grain(int iv, double vol, double x, double y, double z, i
       grain.add_neigh(static_cast<int>(neighs[i]));
     // merge grain size
     grain.volume = new_volume;
+  }
+
+  // if incoming grain isn't already in the grains hashmap,
+  // insert a new grain
+  else if (grain_iter == grains.end()) {
+    Grain new_grain = Grain(iv, Point3D(0,0,0));
+    new_grain.volume = vol;
+    new_grain.centroid = Point3D(x,y,z);
+    for (int i = 0; i < nn; i++)
+      new_grain.add_neigh(static_cast<int>(neighs[i]));
+    grains.insert(std::make_pair(iv, new_grain));
   }
 }
 
