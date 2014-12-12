@@ -44,6 +44,7 @@ class DiagMoment : public Diag {
   double min_dist_y(double, double);
   double min_dist_z(double, double);
   void merge_grain(int,double,double,double,double,int,double*);
+  void merge_partial_moments(int,double*);
   
  protected:
   std::map<int, Grain> grains;

@@ -16,6 +16,8 @@
 
 #include "point3d.h"
 
+#define NUM_MOMENTS 6
+
 namespace SPPARKS_NS {
 
 class Grain {
@@ -26,6 +28,7 @@ class Grain {
   Point3D centroid;
   int nneigh;
   int* neighlist;
+  double second_moment[NUM_MOMENTS];
 
   Grain(int, double, int, int*);
   Grain(int, Point3D);
@@ -34,6 +37,7 @@ class Grain {
   ~Grain();
   void add_neigh(int);
   void update_centroid(Point3D);
+  void update_central_moments(Point3D);
   void print(FILE*);
 };
 

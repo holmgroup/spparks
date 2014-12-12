@@ -165,101 +165,229 @@ void DiagMoment::compute()
   
   /* communicate partial moments to root process */
   /* pack grain data into buffer */
+  {
+    int me_size,m,maxbuf;
+    double* dbufclust;
+    int tmp,nrecv;
+    MPI_Status status;
+    MPI_Request request;
+    int nn;
 
-  int me_size,m,maxbuf;
-  double* dbufclust;
-  int tmp,nrecv;
-  MPI_Status status;
-  MPI_Request request;
-  int nn;
-
-  me_size = 0;
-  for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
-    me_size += 6+grain_iter->second.nneigh;
-  }
-  if (me == 0) me_size = 0;
-
-  MPI_Allreduce(&me_size,&maxbuf,1,MPI_INT,MPI_MAX,world);
-
-  dbufclust = new double[maxbuf];
-
-  if (me != 0) {
-    m = 0;
+    me_size = 0;
     for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
-      Grain& grain = grain_iter->second;
-      dbufclust[m++] = grain.id;
-      dbufclust[m++] = grain.volume;
-      dbufclust[m++] = grain.centroid.x;
-      dbufclust[m++] = grain.centroid.y;
-      dbufclust[m++] = grain.centroid.z;
-      dbufclust[m++] = grain.nneigh;
-      for (int j = 0; j < grain.nneigh; j++) {
-	dbufclust[m++] = grain.neighlist[j];
+      me_size += 6+grain_iter->second.nneigh;
+    }
+    if (me == 0) me_size = 0;
+
+    MPI_Allreduce(&me_size,&maxbuf,1,MPI_INT,MPI_MAX,world);
+
+    dbufclust = new double[maxbuf];
+
+    if (me != 0) {
+      m = 0;
+      for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
+	Grain& grain = grain_iter->second;
+	dbufclust[m++] = grain.id;
+	dbufclust[m++] = grain.volume;
+	dbufclust[m++] = grain.centroid.x;
+	dbufclust[m++] = grain.centroid.y;
+	dbufclust[m++] = grain.centroid.z;
+	dbufclust[m++] = grain.nneigh;
+	for (int j = 0; j < grain.nneigh; j++) {
+	  dbufclust[m++] = grain.neighlist[j];
+	}
       }
+    
+      if (me_size != m)
+	error->one(FLERR,"Mismatch in counting for dbufclust");
+    
+    }
+
+    // proc 0 pings each proc, receives it's data, adds it to list
+    // all other procs wait for ping, send their data to proc 0
+
+    if (me == 0) {
+      for (int iproc = 1; iproc < nprocs; iproc++) {
+	MPI_Irecv(dbufclust,maxbuf,MPI_DOUBLE,iproc,0,world,&request);
+	MPI_Send(&tmp,0,MPI_INT,iproc,0,world);
+	MPI_Wait(&request,&status);
+	MPI_Get_count(&status,MPI_DOUBLE,&nrecv);
+      
+	m = 0;
+	double volsum = 0;
+	double vol = 0;
+	while (m < nrecv) {
+	  grain_id = static_cast<int> (dbufclust[m++]);
+	  vol = dbufclust[m++];
+	  x = dbufclust[m++];
+	  y = dbufclust[m++];
+	  z = dbufclust[m++];
+	  nn = static_cast<int> (dbufclust[m++]);
+	  // add new grain, or merge respecting PBC
+	  merge_grain(grain_id,vol,x,y,z,nn,&dbufclust[m]);
+	  m+=nn;
+	  volsum+=vol;
+	}
+      }
+    } else {
+      MPI_Recv(&tmp,0,MPI_INT,0,0,world,&status);
+      MPI_Rsend(dbufclust,me_size,MPI_DOUBLE,0,0,world);
     }
     
-    if (me_size != m)
-      error->one(FLERR,"Mismatch in counting for dbufclust");
-    
+    delete [] dbufclust;
   }
-
-  // proc 0 pings each proc, receives it's data, adds it to list
-  // all other procs wait for ping, send their data to proc 0
 
   if (me == 0) {
-    for (int iproc = 1; iproc < nprocs; iproc++) {
-      MPI_Irecv(dbufclust,maxbuf,MPI_DOUBLE,iproc,0,world,&request);
-      MPI_Send(&tmp,0,MPI_INT,iproc,0,world);
-      MPI_Wait(&request,&status);
-      MPI_Get_count(&status,MPI_DOUBLE,&nrecv);
-      
-      m = 0;
-      double volsum = 0;
-      double vol = 0;
-      while (m < nrecv) {
-	grain_id = static_cast<int> (dbufclust[m++]);
-	vol = dbufclust[m++];
-	x = dbufclust[m++];
-	y = dbufclust[m++];
-	z = dbufclust[m++];
-	nn = static_cast<int> (dbufclust[m++]);
-	// add new grain, or merge respecting PBC
-	merge_grain(grain_id,vol,x,y,z,nn,&dbufclust[m]);
-	m+=nn;
-	volsum+=vol;
-      }
+    // move grain centroids back into the simulation box
+    for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
+      Grain& grain = grain_iter->second;
+      grain.centroid.x -= x_size * floor(grain.centroid.x / x_size);
+      grain.centroid.y -= y_size * floor(grain.centroid.y / y_size);
+      grain.centroid.z -= z_size * floor(grain.centroid.z / z_size);
+      grain.reference = grain.centroid;
     }
-  } else {
-    MPI_Recv(&tmp,0,MPI_INT,0,0,world,&status);
-    MPI_Rsend(dbufclust,me_size,MPI_DOUBLE,0,0,world);
   }
-
-  delete [] dbufclust;
-
+  
   /* if higher-order moments wanted */
   /* Root process broadcasts cluster centroids */
+  {
+    int m,maxbuf;
+    double* dbufcent;
+    int tmp,nrecv;
+    MPI_Status status;
+    MPI_Request request;
+
+    /* broadcast grain_id and centroid for each grain */
+    maxbuf = 0;
+    if (me == 0)
+      maxbuf = 4 * grains.size();
+    MPI_Bcast(&maxbuf, 1,MPI_INT,0,world);
+    fprintf(stdout,"%d\n",maxbuf);
+    dbufcent = new double[maxbuf];
+
+    if (me == 0) {
+      /* root process packs buffer with grain ids and centroids */
+      m = 0;
+      for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
+	Grain& grain = grain_iter->second;
+	dbufcent[m++] = grain.id;
+	dbufcent[m++] = grain.centroid.x;
+	dbufcent[m++] = grain.centroid.y;
+	dbufcent[m++] = grain.centroid.z;
+	grain.reference = grain.centroid;
+      }
+    }
+    
+    /* root proc broadcasts centroid buffer */
+    MPI_Bcast(dbufcent,maxbuf,MPI_DOUBLE,0,world);
+
+    /* update centroids in place */
+    if (me != 0) {
+      for (m = 0; m < maxbuf; m+=4) {
+	grain_id = static_cast<int>(dbufcent[m]);
+	grain_iter = grains.find(grain_id);
+	// skip grains not partially owned by this proc
+	if (grain_iter == grains.end())
+	  continue;
+	Grain& grain = grain_iter->second;
+	grain.centroid.x = dbufcent[m+1];
+	grain.centroid.y = dbufcent[m+2];
+	grain.centroid.z = dbufcent[m+3];
+	grain.reference = grain.centroid;
+      }
+    }
+    delete [] dbufcent;
+  }
+  
   /* Compute partial higher moments relative to centroids, respecting PBC */
-  /* communicate partial higher moments back to root process */
-  /* root process combines partial higher moments */
+  /* Note: volume and neighbor count/list not up to date */
+  for (int i = 0; i < nlocal; i++) {
+    grain_id = site[i];
+    grain_iter = grains.find(grain_id);
+    if (grain_iter == grains.end())
+      error->all(FLERR,"inconsistent grain_id");
+    Grain& grain = grain_iter->second;
+
+    // increment volume and centroid partial sum
+    x = (this->*x_dist)(xyz[i][0], grain.centroid.x);
+    y = (this->*y_dist)(xyz[i][1], grain.centroid.y);
+    z = (this->*z_dist)(xyz[i][2], grain.centroid.z);
+    grain.update_central_moments(Point3D(x,y,z));
+  }
+
+  {
+    /* communicate partial higher moments back to root process */
+    int me_size,m,maxbuf;
+    double* dbufmoment;
+    int tmp,nrecv;
+    MPI_Status status;
+    MPI_Request request;
+
+    me_size = 7 * grains.size();
+    if (me == 0) me_size = 0;
+
+    MPI_Allreduce(&me_size,&maxbuf,1,MPI_INT,MPI_MAX,world);
+
+    dbufmoment = new double[maxbuf];
+
+    if (me != 0) {
+      m = 0;
+      for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
+	Grain& grain = grain_iter->second;
+	dbufmoment[m++] = grain.id;
+	for (int i = 0; i < NUM_MOMENTS; i++) {
+	  dbufmoment[m++] = grain.second_moment[i];
+	}
+      }
+    
+      if (me_size != m)
+	error->one(FLERR,"Mismatch in counting for dbufclust");
+    
+    }
+
+    // proc 0 pings each proc, receives it's data, adds it to list
+    // all other procs wait for ping, send their data to proc 0
+
+    if (me == 0) {
+      for (int iproc = 1; iproc < nprocs; iproc++) {
+	MPI_Irecv(dbufmoment,maxbuf,MPI_DOUBLE,iproc,0,world,&request);
+	MPI_Send(&tmp,0,MPI_INT,iproc,0,world);
+	MPI_Wait(&request,&status);
+	MPI_Get_count(&status,MPI_DOUBLE,&nrecv);
+      
+	m = 0;
+	while (m < nrecv) {
+	  /* root proc combines partial moments */
+	  grain_id = static_cast<int> (dbufmoment[m++]);
+	  merge_partial_moments(grain_id,&dbufmoment[m]);
+	  m += NUM_MOMENTS;
+	}
+      }
+    } else {
+      MPI_Recv(&tmp,0,MPI_INT,0,0,world,&status);
+      MPI_Rsend(dbufmoment,me_size,MPI_DOUBLE,0,0,world);
+    }
+    
+    delete [] dbufmoment;
+  }
 
   // root process saves to file
   if (me == 0) {
     if (fpdump) {
       fprintf(fpdump, "------------------------\n");
       fprintf(fpdump, "%d grains\n", grains.size());
-      fprintf(fpdump, "id volume Cent_x Cent_y Cent_z NumNeighs NeighList\n");
+      fprintf(fpdump, "id volume Cent_x Cent_y Cent_z m_200 m_020 m_002 m_110 m_101 m_011 NumNeighs NeighList\n");
       for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
 	Grain& grain = grain_iter->second;
-	grain.centroid.x -= x_size * floor(grain.centroid.x / x_size);
-	grain.centroid.y -= y_size * floor(grain.centroid.y / y_size);
-	grain.centroid.z -= z_size * floor(grain.centroid.z / z_size);
-	fprintf(fpdump, "%d %f %f %f %f %d",
+	fprintf(fpdump, "%d %f %f %f %f",
 		grain.id,
 		grain.volume,
 		grain.centroid.x,
 		grain.centroid.y,
-		grain.centroid.z,
-		grain.nneigh);
+		grain.centroid.z);
+	for (int ii = 0; ii < NUM_MOMENTS; ii++)
+	  fprintf(fpdump," %f", grain.second_moment[ii]);
+	fprintf(fpdump," %d", grain.nneigh);
 	for (int ii = 0; ii < grain.nneigh; ii++)
 	  fprintf(fpdump, " %d", grain.neighlist[ii]);
 	fprintf(fpdump, "\n");
@@ -307,6 +435,20 @@ void DiagMoment::merge_grain(int iv, double vol, double x, double y, double z, i
   }
 }
 
+
+void DiagMoment::merge_partial_moments(int grain_id, double* moment) {
+  grain_iter = grains.find(grain_id);
+  
+  if (grain_iter == grains.end()) {
+    error->all(FLERR,"Merging moments: grain not found.");
+  }
+  Grain& grain = grain_iter->second;
+  for (int i = 0; i < NUM_MOMENTS; i++) {
+    grain.second_moment[i] += moment[i];
+  }
+}
+
+
 /* ---------------------------------------------------------------------- */
 
 void DiagMoment::stats(char *strtmp)
@@ -330,14 +472,6 @@ inline double DiagMoment::min_dist(double p, double p_ref, double p_size) {
   delta = delta - (p_size * round(delta / p_size));
   return delta;
 }
-
-
-// inline double DiagMoment::min_dist(double p, double p_ref, double p_size) {
-//   double delta = dist(p,p_ref);
-//   if (abs(delta) > 0.5*p_size)
-//     delta = delta - copysign(p_size,delta);
-//   return delta;
-// }
 
 double DiagMoment::min_dist_x(double x, double x_ref) {
   return min_dist(x, x_ref, x_size);

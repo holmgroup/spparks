@@ -22,6 +22,8 @@ Grain::Grain(int id, double vol, int nn, int* neighs) {
   volume = vol;
   reference = Point3D(0,0,0);
   centroid = Point3D(0,0,0);
+  for (int i = 0; i < NUM_MOMENTS; i++)
+    second_moment[i] = 0;
   nneigh = nn;
   if (nneigh == 0) {
     neighlist = NULL;
@@ -39,6 +41,8 @@ Grain::Grain(int grain_id, Point3D ref) {
   volume = 0;
   reference = ref;
   centroid = Point3D(0,0,0);
+  for (int i = 0; i < NUM_MOMENTS; i++)
+    second_moment[i] = 0;
   nneigh = 0;
   neighlist = NULL;
 }
@@ -47,9 +51,12 @@ Grain::Grain(int grain_id, Point3D ref) {
 Grain::Grain(const Grain& g) {
   id = g.id;
   volume = g.volume;
-  nneigh = g.nneigh;
   reference = g.reference;
   centroid = g.centroid;
+  for (int i = 0; i < NUM_MOMENTS; i++) {
+    second_moment[i] = g.second_moment[i];
+  }
+  nneigh = g.nneigh;
   if (nneigh == 0) {
     neighlist = NULL;
   } else {
@@ -68,6 +75,9 @@ Grain& Grain::operator=(const Grain& g) {
   id = g.id;
   volume = g.volume;
   centroid = g.centroid;
+  for (int i = 0; i < NUM_MOMENTS; i++) {
+    second_moment[i] = g.second_moment[i];
+  }
   nneigh = g.nneigh;
   if (nneigh == 0) {
     neighlist = NULL;
@@ -100,6 +110,17 @@ void Grain::update_centroid(Point3D delta) {
   centroid.x += delta.x;
   centroid.y += delta.y;
   centroid.z += delta.z;
+}
+
+void Grain::update_central_moments(Point3D p) {
+  /* second-order central moments: */
+  
+  second_moment[0] += p.x * p.x; // \mu_200
+  second_moment[1] += p.y * p.y; // \mu_020
+  second_moment[2] += p.z * p.z; // \mu_002
+  second_moment[3] += p.x * p.y; // \mu_110
+  second_moment[4] += p.x * p.z; // \mu_101
+  second_moment[5] += p.y * p.z; // \mu_011
 }
 
 void Grain::print(FILE* fp) {
