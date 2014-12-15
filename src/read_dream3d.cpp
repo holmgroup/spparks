@@ -127,7 +127,7 @@ void ReadDream3d::command(int narg, char **arg)
 
   // Read orientation data
   // do this if specified and if app_style allows orientations
-  if load_orientations {
+  if (load_orientations) {
       ;
     }
   // close file
