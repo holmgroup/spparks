@@ -20,6 +20,7 @@
 #include "app.h"
 #include "app_lattice.h"
 #include "app_off_lattice.h"
+#include "app_potts.h"
 #include "domain.h"
 #include "create_sites.h"
 #include "error.h"
@@ -63,14 +64,23 @@ ReadDream3d::~ReadDream3d()
 void ReadDream3d::command(int narg, char **arg)
 {
   if (app == NULL) error->all(FLERR,"read_dream3d command before app_style set");
-
-  if (narg ==  1)
-    input_file = arg[0];
-  else if (narg == 2) 
-    load_orientations = true;
-  else
-    error->all(FLERR,"Illegal read_dream3d command");
-  
+  int iarg = 0;
+  while (iarg < narg) {
+    if (strcmp(arg[iarg],"filename") == 0) {
+      iarg++;
+      if (iarg < narg) {
+	if (me == 0) {
+	  input_file = arg[iarg];
+	}
+      } else error->all(FLERR,"Illegal diag_style cluster command");
+    }
+    else if (strcmp(arg[iarg],"load_ori") == 0) {
+      load_orientations = true;
+    }
+    else
+      error->all(FLERR,"Illegal read_dream3d command");
+    iarg++;
+  }
   
   if (domain->dimension == 2 && domain->zperiodic == 0)
     error->all(FLERR,"Cannot run 2d simulation with nonperiodic Z dimension");
@@ -86,6 +96,15 @@ void ReadDream3d::command(int narg, char **arg)
     error->all(FLERR, "Cannot read DREAM3D file for off-lattice apps.");
   }
 
+  if (load_orientations) {
+    if ((strcmp(app->style,"potts") == 0)) {
+	app_potts = (AppPotts *) app;
+	fprintf(stdout,"ok, load orientations");
+      }
+    else
+      error->all(FLERR, "Must use app_style potts/ori to load orientations from dream3d");
+  }
+    
   // proc 0 opens the dream3d file
   if (me == 0) {
     if (screen) fprintf(screen,"Reading dream3d file ...\n");
@@ -127,9 +146,9 @@ void ReadDream3d::command(int narg, char **arg)
 
   // Read orientation data
   // do this if specified and if app_style allows orientations
-  if (load_orientations) {
-      ;
-    }
+  if (load_orientations)
+    extract_orientations();
+
   // close file
   std::cout << "Finished reading dream3d file" << std::endl;
 #ifdef SPPARKS_HDF5
@@ -244,11 +263,20 @@ void ReadDream3d::extract_grain_ids() {
 
   bigint nbig = nglobal;
   if (me == 0) {
-    if (screen) fprintf(screen,"  " BIGINT_FORMAT " values\n",
-			nbig*nvalues);
-    if (logfile) fprintf(logfile,"  " BIGINT_FORMAT " values\n",
-			 nbig*nvalues);
+    if (screen)
+      fprintf(screen,"  " BIGINT_FORMAT " values\n", nbig*nvalues);
+    if (logfile)
+      fprintf(logfile,"  " BIGINT_FORMAT " values\n", nbig*nvalues);
   }
   delete [] data;
   return;
+}
+
+void ReadDream3d::extract_orientations() {
+  float data[10];
+  for (int i = 0; i < 10; i++) {
+    data[i] = static_cast<float>(i);
+  }
+  // communicate data buffer, then call copy_ori
+  app_potts->copy_ori(&data[0],10);
 }

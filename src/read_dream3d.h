@@ -50,12 +50,14 @@ class ReadDream3d : protected Pointers {
   int latticeflag;
   class AppLattice *applattice;
   class AppOffLattice *appoff;
-
+  class AppPotts *app_potts;
+  
   int maxneigh;
   double boxxlo,boxxhi,boxylo,boxyhi,boxzlo,boxzhi;
 
   void get_dimensions();
   void extract_grain_ids();
+  void extract_orientations();
 };
 
 }
