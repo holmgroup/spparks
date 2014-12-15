@@ -17,6 +17,7 @@ AppStyle(potts/ori,AppPottsOri)
 #else
 
 #include "app_potts.h"
+#include <Eigen/Geometry>
 
 namespace SPPARKS_NS {
 
@@ -32,17 +33,29 @@ class AppPottsOri : public AppPotts {
   double site_propensity(int);
   void site_event(int, class RandomPark *);
 
-  double *e_table, *m_table;
-
  private:
+  double *e_table, *m_table, *ori_table, *misori_table;
+
   double (AppPottsOri::*energy)(int,int);
   double (AppPottsOri::*mobility)(int,int);
   double uniform_energy(int,int);
   double uniform_mobility(int,int);
   double lookup_energy(int,int);
   double lookup_mobility(int,int);
+  double compute_energy(int,int);
+  double compute_mobility(int,int);
+  double* load_table(char*);
+  double* read_shockley_table();
+  double read_shockley_energy(double);
 
-  double* load_table(char* filename);
+  Eigen::Quaternion<double> misori(Eigen::Quaternion<double>,
+				   Eigen::Quaternion<double>,
+				   int, double*);
+  bool cubic_FZ_test(Eigen::Quaternion<double>);
+  double* load_euler_orientations_as_quats(char*);
+  void quat_from_Bunge(double,double,double,double*);
+  void compute_misorientation_angles(std::string);
+  double* load_symm_table(int &N_symm, std::string);
 };
 
 }
