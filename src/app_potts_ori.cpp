@@ -332,19 +332,3 @@ double *AppPottsOri::load_table(char *filename) {
 
   return table;
 }
-
-void AppPottsOri::copy_euler_angle_data(float *data, int num_orientations) {
-  int data_size = 3 * num_orientations;
-  float* euler_buf = new float[data_size];
-  for (int i = 0; i < data_size; i++) {
-    euler_buf[i] = data[i];
-  }
-}
-
-void AppPottsOri::copy_quaternion_data(float *data, int num_orientations) {
-  int data_size = 4 * num_orientations;
-  float* quat_buf = new float[data_size];
-  for (int i = 0; i < data_size; i++) {
-    quat_buf[i] = data[i];
-  }
-}

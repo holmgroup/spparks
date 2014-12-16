@@ -302,5 +302,5 @@ void ReadDream3d::read_average_eulers() {
   /* root proc broadcasts orientation data */
   MPI_Bcast(data, data_size, MPI_FLOAT, 0, world);
 
-  app_potts_ori->copy_euler_angle_data(data,num_grains);
+  app_potts_ori->gb_props.copy_euler_angle_data(data,num_grains);
 }
