@@ -96,7 +96,7 @@ void AppPottsOri::init_app()
 
   int flag = 0;
   for (int i = 0; i < nlocal; i++)
-    if (spin[i] < 1 || spin[i] > nspins+1) flag = 1;
+    if (spin[i] < 1 || spin[i] > nspins) flag = 1;
   int flagall;
   MPI_Allreduce(&flag,&flagall,1,MPI_INT,MPI_SUM,world);
   if (flagall) error->all(FLERR,"One or more sites have invalid values");
@@ -333,6 +333,9 @@ double *AppPottsOri::load_table(char *filename) {
   return table;
 }
 
-void AppPottsOri::copy_orientation_data(float *data, int size) {
-  ;
+void AppPottsOri::copy_orientation_data(float *data, int data_size) {
+  float* orientations = new float[data_size];
+  for (int i = 0; i < data_size; i++) {
+    orientations[i] = data[i];
+  }
 }
