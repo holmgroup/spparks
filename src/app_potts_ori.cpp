@@ -333,3 +333,6 @@ double *AppPottsOri::load_table(char *filename) {
   return table;
 }
 
+void AppPottsOri::copy_orientation_data(float *data, int size) {
+  ;
+}

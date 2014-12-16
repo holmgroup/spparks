@@ -20,7 +20,7 @@
 #include "app.h"
 #include "app_lattice.h"
 #include "app_off_lattice.h"
-#include "app_potts.h"
+#include "app_potts_ori.h"
 #include "domain.h"
 #include "create_sites.h"
 #include "error.h"
@@ -97,9 +97,8 @@ void ReadDream3d::command(int narg, char **arg)
   }
 
   if (load_orientations) {
-    if ((strcmp(app->style,"potts") == 0)) {
-	app_potts = (AppPotts *) app;
-	fprintf(stdout,"ok, load orientations");
+    if ((strcmp(app->style,"potts/ori") == 0)) {
+	app_potts_ori = (AppPottsOri *) app;
       }
     else
       error->all(FLERR, "Must use app_style potts/ori to load orientations from dream3d");
@@ -161,8 +160,12 @@ void ReadDream3d::command(int narg, char **arg)
 void ReadDream3d::get_dimensions() {
   int dims_buf[3] = {0, 0, 0};
 #ifdef SPPARKS_HDF5
-  h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/DIMENSIONS", dims_buf);
+  if (me == 0) 
+    h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/DIMENSIONS", dims_buf);
 #endif
+
+  MPI_Bcast(dims_buf, 3, MPI_INT, 0, world);
+  
   std::cout << "dataset dimensions: " << dims_buf[0] << " x " << dims_buf[1] << " x " << dims_buf[2];
   std::cout << std::endl;
 
@@ -273,10 +276,30 @@ void ReadDream3d::extract_grain_ids() {
 }
 
 void ReadDream3d::extract_orientations() {
-  float data[10];
-  for (int i = 0; i < 10; i++) {
-    data[i] = static_cast<float>(i);
+  int num_grains = 0;
+  int num_values = 0;
+#ifdef SPPARKS_HDF5
+  if (me == 0) {
+    hsize_t dims[2];
+    h5_status = H5LTget_dataset_info(file_id,"/VoxelDataContainer/FIELD_DATA/EulerAngles",
+				     dims,NULL,NULL);
+    num_grains = dims[0];
+    num_values = dims[1];
   }
-  // communicate data buffer, then call copy_ori
-  app_potts->copy_ori(&data[0],10);
+#endif
+  
+  MPI_Bcast(&num_grains,1,MPI_INT, 0, world);
+  int data_size = 3 * num_grains;
+  float* data = new float[data_size];
+  
+#ifdef SPPARKS_HDF5
+  if (me == 0) {
+    h5_status = H5LTread_dataset_float(file_id,"/VoxelDataContainer/FIELD_DATA/EulerAngles",data);
+  }
+#endif
+
+  /* root proc broadcasts orientation data */
+  MPI_Bcast(data, data_size, MPI_FLOAT, 0, world);
+
+  app_potts_ori->copy_orientation_data(data,data_size);
 }
