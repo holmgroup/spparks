@@ -77,8 +77,9 @@ void ReadDream3d::command(int narg, char **arg)
     else if (strcmp(arg[iarg],"load_ori") == 0) {
       load_orientations = true;
     }
-    else
+    else {
       error->all(FLERR,"Illegal read_dream3d command");
+    }
     iarg++;
   }
   
@@ -141,12 +142,12 @@ void ReadDream3d::command(int narg, char **arg)
   input->one("create_sites box");
 
   // Read site values
-  extract_grain_ids();
+  read_grain_ids();
 
   // Read orientation data
   // do this if specified and if app_style allows orientations
   if (load_orientations)
-    extract_orientations();
+    read_average_eulers();
 
   // close file
   std::cout << "Finished reading dream3d file" << std::endl;
@@ -187,7 +188,7 @@ void ReadDream3d::get_dimensions() {
   return;
 }
 
-void ReadDream3d::extract_grain_ids() {
+void ReadDream3d::read_grain_ids() {
 
   int* data = NULL;
 #ifdef SPPARKS_HDF5
@@ -275,7 +276,7 @@ void ReadDream3d::extract_grain_ids() {
   return;
 }
 
-void ReadDream3d::extract_orientations() {
+void ReadDream3d::read_average_eulers() {
   int num_grains = 0;
   int num_values = 0;
 #ifdef SPPARKS_HDF5
@@ -301,5 +302,5 @@ void ReadDream3d::extract_orientations() {
   /* root proc broadcasts orientation data */
   MPI_Bcast(data, data_size, MPI_FLOAT, 0, world);
 
-  app_potts_ori->copy_orientation_data(data,data_size);
+  app_potts_ori->copy_euler_angle_data(data,num_grains);
 }

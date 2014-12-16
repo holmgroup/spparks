@@ -56,8 +56,8 @@ class ReadDream3d : protected Pointers {
   double boxxlo,boxxhi,boxylo,boxyhi,boxzlo,boxzhi;
 
   void get_dimensions();
-  void extract_grain_ids();
-  void extract_orientations();
+  void read_grain_ids();
+  void read_average_eulers();
 };
 
 }

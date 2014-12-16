@@ -32,7 +32,8 @@ class AppPottsOri : public AppPotts {
   void site_event_rejection(int, class RandomPark *);
   double site_propensity(int);
   void site_event(int, class RandomPark *);
-  void copy_orientation_data(float*, int);
+  void copy_euler_angle_data(float*, int);
+  void copy_quaternion_data(float*, int);
 
  private:
   double *e_table, *m_table, *ori_table, *misori_table;
