@@ -33,8 +33,8 @@ class AppPottsOri : public AppPotts {
   double site_propensity(int);
   void site_event(int, class RandomPark *);
 
+  class Crystallography *gb_props;
  private:
-  Crystallography gb_props;
   
 };
 

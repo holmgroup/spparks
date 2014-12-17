@@ -20,6 +20,7 @@
 #include "random_mars.h"
 #include "random_park.h"
 #include "error.h"
+#include "crystallography.h"
 
 #include <map>
 #include <algorithm>
@@ -33,22 +34,14 @@ AppPottsOri::AppPottsOri(SPPARKS *spk, int narg, char **arg) :
   AppPotts(spk,narg,arg)
 {
   if (narg != 2) error->all(FLERR,"Illegal app_style command");
-
-  // default to isotropic potts model
-  energy = &AppPottsOri::uniform_energy;
-  mobility = &AppPottsOri::uniform_mobility;
-  e_table = m_table = NULL;
+  // gb_props = new Crystallography();
 }
 
 /* ---------------------------------------------------------------------- */
 
 AppPottsOri::~AppPottsOri()
 {
-  // sites and unique are deleted by the ~AppPotts virtual destructor
-  // delete [] sites;
-  // delete [] unique;
-  delete [] e_table;
-  delete [] m_table;
+  ;
 }
 
 
@@ -59,25 +52,10 @@ AppPottsOri::~AppPottsOri()
 void AppPottsOri::input_app(char *command, int narg, char **arg)
 {
   if (strcmp(command,"load_mobility") == 0) {
-    if (narg != 1) error->all(FLERR,"Illegal load_mobility command");
-    // extract the filename for mobility lookup table
-    char *m_filename = arg[0];
-    // set fn pointer (*mobility) to the lookup function
-    mobility = &AppPottsOri::lookup_mobility;
-    // load the mobility lookup table *m_table
-    fprintf(stdout, "loading mobility lookup table...");
-    m_table = load_table(m_filename);
-    if (m_table == NULL) fprintf(stdout, "problem allocating m_table\n");
-    fprintf(stdout, " finished.\n");
+    ;
   }
   else if (strcmp(command, "load_energy") == 0) {
-    if (narg != 1) error->all(FLERR,"Illegal load_energy command");
-    // extract the filename for energy lookup table
-    char *e_filename = arg[0];
-    // set fn pointer (*energy) to the lookup function
-    energy = &AppPottsOri::lookup_energy;
-    // load the energy lookup table *e_table
-    e_table = load_table(e_filename);
+    ;
   }
   else error->all(FLERR,"Unrecognized command");
 }
@@ -116,7 +94,7 @@ double AppPottsOri::site_energy(int i)
   for (int j = 0; j < numneigh[i]; j++) {
     jsite = spin[neighbor[i][j]];
     if (isite != jsite) {
-      eng += (this->*energy)(isite, jsite);
+      eng += gb_props->energy(isite, jsite);
     }
   }
   return eng;
@@ -149,7 +127,7 @@ void AppPottsOri::site_event_rejection(int i, RandomPark *random)
   if (iran > nspins) iran = nspins;
   spin[i] = iran;
   double efinal = site_energy(i);
-  double M = (this->*mobility)(spin[i], oldstate);
+  double M = gb_props->mobility(spin[i], oldstate);
   // accept or reject via Boltzmann criterion
   // null bin extends to nspins
 
@@ -211,7 +189,7 @@ double AppPottsOri::site_propensity(int i)
   for (m = 0; m < nevent; m++) {
     spin[i] = unique[m];
     efinal = site_energy(i);
-    M = (this->*mobility)(spin[i], oldstate);
+    M = gb_props->mobility(spin[i], oldstate);
     if (efinal <= einitial) prob += M;
     else if (temperature > 0.0) prob += M * exp((einitial-efinal)*t_inverse);
   }
@@ -252,7 +230,7 @@ void AppPottsOri::site_event(int i, RandomPark *random)
 
     spin[i] = value;
     efinal = site_energy(i);
-    M = (this->*mobility)(spin[i], oldstate);
+    M = gb_props->mobility(spin[i], oldstate);
     if (efinal <= einitial) prob += M;
     else if (temperature > 0.0) prob += M * exp((einitial-efinal)*t_inverse);
     if (prob >= threshhold) break;
@@ -275,60 +253,4 @@ void AppPottsOri::site_event(int i, RandomPark *random)
   }
 
   solve->update(nsites,sites,propensity);
-}
-
-
-double AppPottsOri::uniform_energy(int ispin, int jspin) {
-  return 1;
-}
-
-double AppPottsOri::uniform_mobility(int ispin, int jspin) {
-  return 1;
-}
-
-double AppPottsOri::lookup_energy(int ispin, int jspin) {
-  int r,c;
-  c = std::min(ispin, jspin);
-  r = std::max(ispin, jspin);
-  int address = ((r * (r+1)) / 2) + c;
-  return e_table[address];
-}
-
-double AppPottsOri::lookup_mobility(int ispin, int jspin) {
-  int r,c;
-  c = std::min(ispin, jspin);
-  r = std::max(ispin, jspin);
-  int address = ((r * (r+1)) / 2) + c;
-  return m_table[address];
-}
-
-double *AppPottsOri::load_table(char *filename) {
-  // allocate sparse triangular lookup table
-  // including the diagonal elements
-  // lookup table should contain entries for spin == 0
-  // this way special energies can be assigned to particle interfaces
-  // and it's easier to think about zero-based arrays
-
-  // fragile header-parsing code, updates nspins
-  std::string line;
-  std::ifstream infile(filename);
-  if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
-  std::getline(infile, line); // ignore the first line
-  infile >> nspins >> line; // second line of file header is "$nspins spins"
-
-  int table_size = (nspins+1) + (nspins* (nspins+1)) / 2;
-  double *table;
-  table = new double[table_size];
-
-  double value = -1;
-  for (int r = 0; r < nspins+1; r++) {
-    for (int c = 0; c <= r; c++) {
-      int address = ((r * (r+1)) / 2) + c;
-      infile >> value;
-      if (value < 0.0 || value > 1.0) error->all(FLERR,"Improperly specified lookup table");
-      table[address] = value;
-    }
-  }
-
-  return table;
 }

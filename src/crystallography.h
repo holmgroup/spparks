@@ -26,19 +26,21 @@ class Crystallography {
  public:
   double *quaternion_buf;
   
-  int symmetry_order;
+  int n_symm;
   double *symmetry_buf;
   
   Crystallography();
   ~Crystallography();
+  double energy(int,int);
+  double mobility(int,int);
+  void copy_euler_angle_data(float*, int);
+  void copy_quaternion_data(float*, int);
   
  protected:
   double (Crystallography::*energy_pt)(int,int);
   double (Crystallography::*mobility_pt)(int,int);
 
-  double energy(int,int);
-  double mobility(int,int);
-  void set_options();
+  void set_options(int argc, char** argv);
 
   double uniform_energy(int,int);
   double uniform_mobility(int,int);
@@ -46,12 +48,11 @@ class Crystallography {
   double read_shockley_energy(int,int);
   double hwang_humphreys_mobility(int,int);
 
-  void copy_euler_angle_data(float*, int);
-  void copy_quaternion_data(float*, int);
-
   double get_misorientation_angle(int,int);
-  
+
   Quat misori(Quat,Quat,int,double*);
+  void load_symmetry_operator(std::string);
+  
   bool cubic_FZ_test(Quat);
   double* load_euler_orientations_as_quats(char*);
   void quat_from_Bunge(double,double,double,double*);

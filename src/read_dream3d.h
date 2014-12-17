@@ -58,6 +58,7 @@ class ReadDream3d : protected Pointers {
   void get_dimensions();
   void read_grain_ids();
   void read_average_eulers();
+  void read_average_quaternions();
 };
 
 }
