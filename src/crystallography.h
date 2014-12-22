@@ -27,6 +27,7 @@ namespace SPPARKS_NS {
 class Crystallography {
  public:
   double *quaternion_buf;
+  int n_orientations;
   
   int n_symm;
   double *symmetry_buf;
@@ -38,24 +39,29 @@ class Crystallography {
   ~Crystallography();
   double energy(int,int);
   double mobility(int,int);
+  double misorientation(int,int);
   void copy_euler_angle_data(float*, int);
   void copy_quaternion_data(float*, int);
-  void set_RS(double);
-  void set_HH(double);
+  void use_read_shockley(double);
+  void use_hwang_humphreys(double);
+  void setup_misorientation(char*);
   
  protected:
-
+  double* misorientation_buf;
+  
   double (Crystallography::*energy_pt)(int,int);
   double (Crystallography::*mobility_pt)(int,int);
-
-  double uniform_energy(int,int);
-  double uniform_mobility(int,int);
+  double (Crystallography::*misorientation_pt)(int,int);
+  
+  double unity(int,int);
 
   double read_shockley_energy(int,int);
   double hwang_humphreys_mobility(int,int);
 
-  double get_misorientation_angle(int,int);
-  double get_cubic_misorientation_angle(int,int);
+  double precomputed_misorientation_angle(int,int);
+  double cached_misorientation_angle(int,int);
+  double compute_misorientation_angle(int,int);
+  double compute_cubic_misorientation_angle(int,int);
   
   Quat misori(Quat,Quat,int,double*);
   void load_symmetry_operator();

@@ -53,15 +53,35 @@ void AppPottsOri::input_app(char *command, int narg, char **arg)
 {
   if (strcmp(command,"set_energy") == 0) {
     if (narg < 1) error->all(FLERR,"Illegal energy command");
-    if (strcmp(arg[0],"uniform") == 0) {
+    if (strcmp(arg[0],"uniform") == 0 && narg == 1) {
       ;
     }
     else if (strcmp(arg[0],"read_shockley") == 0 && narg == 2) {
-      fprintf(stdout,"Using read shockley with high angle cutoff %s degrees\n", arg[1]);
       double theta_max = static_cast<double>(atof(arg[1]));
-      gb_props->set_RS(theta_max);
+      gb_props->use_read_shockley(theta_max);
+      fprintf(stdout,"Using read shockley with high angle cutoff %s degrees\n", arg[1]);
     }
     else error->all(FLERR,"Illegal energy command");
+  }
+  else if (strcmp(command,"set_mobility") == 0 ) {
+    if (narg < 1) error->all(FLERR,"Illegal mobility command");
+    if (strcmp(arg[0],"uniform") == 0 && narg == 1) {
+      ;
+    }
+    else if (strcmp(arg[0],"hwang_humphreys") == 0 && narg == 2) {
+      double theta_max = static_cast<double>(atof(arg[1]));
+      gb_props->use_hwang_humphreys(theta_max);
+      fprintf(stdout,"Using read shockley with high angle cutoff %s degrees\n", arg[1]);
+    }
+    else error->all(FLERR, "Illegal mobility command");
+  }
+  else if (strcmp(command,"misorientation") == 0) {
+    if (narg == 1) {
+      if (strcmp(arg[0],"precomputed") == 0 || strcmp(arg[0],"cached") == 0) 
+	gb_props->setup_misorientation(arg[0]);
+      else error->all(FLERR,"Illegal misorientation command.");
+    }
+    else error->all(FLERR, "Illegal misorientation command.");
   }
   else error->all(FLERR,"Unrecognized command");
 }
