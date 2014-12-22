@@ -35,8 +35,9 @@ Crystallography::Crystallography() {
   n_symm = 0;
   e_theta_max = 15;
   m_theta_max = 15;
-  fprintf(stdout, "crystallography constructor\n");
-  load_symmetry_operator();
+
+  // load_symmetry_operator(); // needs error checking code...
+  initialize_cubic_symmetry();
 }
 
 Crystallography::~Crystallography() {
@@ -119,15 +120,13 @@ void Crystallography::copy_quaternion_data(float *data, int num_orientations) {
   }
 }
 
-bool Crystallography::load_symmetry_operator() {
+void Crystallography::load_symmetry_operator() {
   /* Read Prof. Rollett's quaternion symmetry files into raw buffer */
   fprintf(stdout,"loading symmetry operator\n");
   std::string blank;
   // std::string filename = "quat.symm." + symmetry_style;
   std::ifstream infile("quat.symm.cubic");
-  if (!infile)
-    return false;
-  
+  // TODO: test the file stream. or get rid of reading from files...
   std::getline(infile, blank); // ignore first line
   std::cout << blank << std::endl;
   infile >> n_symm; // second line
@@ -147,7 +146,6 @@ bool Crystallography::load_symmetry_operator() {
     int j = 4 * i;
     QuatMap q(&symmetry_buf[j]);
   }
-  return true;
 }
 
 double Crystallography::get_misorientation_angle(int i, int j) {
@@ -187,4 +185,51 @@ double Crystallography::get_cubic_misorientation_angle(int i, int j) {
   QuatMapConst q_j(&quaternion_buf[4*j]);
   misori = q_i * q_j.conjugate();
   return wmin;
+}
+
+void Crystallography::initialize_cubic_symmetry() {
+  n_symm = 24;
+  symmetry_buf = new double[4 * n_symm];
+  int i = 0;
+  double* s = &symmetry_buf[0];
+  initialize_quat(&s[4*i++], 0,0,0,1);
+  initialize_quat(&s[4*i++], 1,0,0,0);
+  initialize_quat(&s[4*i++], 0,1,0,0);
+  initialize_quat(&s[4*i++], 0,0,1,0);
+  
+  initialize_quat(&s[4*i++],  sqrt(2),0,0,sqrt(2));
+  initialize_quat(&s[4*i++],  0,sqrt(2),0,sqrt(2));
+  initialize_quat(&s[4*i++],  0,0,sqrt(2),sqrt(2));
+  initialize_quat(&s[4*i++], -sqrt(2),0,0,sqrt(2));
+  
+  initialize_quat(&s[4*i++],  0,-sqrt(2),0,sqrt(2));
+  initialize_quat(&s[4*i++],  0,0,-sqrt(2),sqrt(2));
+  initialize_quat(&s[4*i++],  sqrt(2),sqrt(2),0,0);
+  initialize_quat(&s[4*i++], -sqrt(2),sqrt(2),0,1);
+  
+  initialize_quat(&s[4*i++], 0,sqrt(2),sqrt(2),0);
+  initialize_quat(&s[4*i++], 0,-sqrt(2),sqrt(2),0);
+  initialize_quat(&s[4*i++], sqrt(2),0,sqrt(2),0);
+  initialize_quat(&s[4*i++], -sqrt(2),0,sqrt(2),0);
+
+  initialize_quat(&s[4*i++],  0.5,  0.5,  0.5,  0.5);
+  initialize_quat(&s[4*i++], -0.5, -0.5, -0.5,  0.5);
+  initialize_quat(&s[4*i++],  0.5, -0.5,  0.5,  0.5);
+  initialize_quat(&s[4*i++], -0.5,  0.5, -0.5,  0.5);
+
+  initialize_quat(&s[4*i++], -0.5,  0.5,  0.5,  0.5);
+  initialize_quat(&s[4*i++],  0.5, -0.5, -0.5,  0.5);
+  initialize_quat(&s[4*i++], -0.5, -0.5,  0.5,  0.5);
+  initialize_quat(&s[4*i++],  0.5,  0.5, -0.5, -0.5);
+
+}
+
+void Crystallography::initialize_quat(double *dbuf,
+				      double x, double y, double z, double w) {
+  QuatMap q(dbuf);
+  q.x() = x;
+  q.y() = y;
+  q.z() = z;
+  q.w() = w;
+  q.normalize();
 }

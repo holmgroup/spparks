@@ -96,7 +96,6 @@ double AppPottsOri::site_energy(int i)
   int isite = spin[i];
   int jsite = 0;
   double eng = 0;
-  double eng_inc = 0;
   for (int j = 0; j < numneigh[i]; j++) {
     jsite = spin[neighbor[i][j]];
     if (isite != jsite) {
@@ -105,15 +104,6 @@ double AppPottsOri::site_energy(int i)
   }
   return eng;
 }
-// double AppPottsOri::site_energy(int i)
-// {
-//   int isite = spin[i];
-//   int eng = 0;
-//   for (int j = 0; j < numneigh[i]; j++)
-//     if (isite != spin[neighbor[i][j]]) eng++;
-//   return (double) eng;
-// }
-
 
 /* ----------------------------------------------------------------------
    rKMC method
@@ -183,8 +173,8 @@ double AppPottsOri::site_propensity(int i)
 
   // for each flip:
   // compute energy difference between initial and final state
-  // if downhill or no energy change, propensity = 1
-  // if uphill energy change, propensity = Boltzmann factor
+  // if downhill or no energy change, propensity = Reduced mobility M
+  // if uphill energy change, propensity = M * Boltzmann factor
 
   int oldstate = spin[i];
   double einitial = site_energy(i);
