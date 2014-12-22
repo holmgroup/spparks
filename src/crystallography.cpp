@@ -21,6 +21,8 @@
 
 #include "signal.h"
 
+#include <unordered_map>
+
 using namespace SPPARKS_NS;
 
 Crystallography::Crystallography() {
@@ -104,12 +106,14 @@ double Crystallography::misorientation(int i, int j) {
 
 /* ------ swap function pointers around ------- */
 void Crystallography::use_read_shockley(double theta_max) {
-  e_theta_max = theta_max;
+  if (theta_max > 0)
+    e_theta_max = theta_max;
   this->energy_pt = &Crystallography::read_shockley_energy;
 }
 
 void Crystallography::use_hwang_humphreys(double theta_max) {
-  m_theta_max = theta_max;
+  if (theta_max > 0)
+    m_theta_max = theta_max;
   this->energy_pt = &Crystallography::hwang_humphreys_mobility;
 }
 
@@ -135,7 +139,7 @@ void Crystallography::setup_misorientation(char* style) {
   
   else if (strcmp(style,"cached") == 0) {
     // set up cache data structure
-    
+    fprintf(stdout,"using hash table 'cache' for misorientations\n");
     this->misorientation_pt = &Crystallography::cached_misorientation_angle;
   }
 }
@@ -143,12 +147,20 @@ void Crystallography::setup_misorientation(char* style) {
 /* -------------------------------------------- */
 
 double Crystallography::precomputed_misorientation_angle(int i, int j) {
-  int index = 0;
+  int index = i * (n_orientations+1) + j;
   return misorientation_buf[index];
 }
 
 double Crystallography::cached_misorientation_angle(int i, int j) {
-  return 1;
+  Key_t key (i, j);
+  m_iter = m_cache.find(key);
+  if (m_iter != m_cache.end()) {
+    return m_iter->second;
+  }
+
+  double misori = compute_misorientation_angle(i, j);
+  m_cache.insert(std::make_pair(key, misori));
+  return misori;
 }
 
 /* --- misorientation calculations ---- */

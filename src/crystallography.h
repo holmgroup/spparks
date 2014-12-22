@@ -16,6 +16,19 @@
 #define SPK_CRYSTALLOGRAPHY_H
 
 #include <Eigen/Geometry>
+#include <unordered_map>
+
+// key type for grain_id pair
+typedef std::pair<int,int> Key_t;
+namespace std {
+  template <>
+    class hash<Key_t> {
+  public:
+    size_t operator()(const Key_t &key) const {
+      return hash<int>()(key.first) ^ hash<int>()(key.second);
+    }
+  };
+};
 
 namespace SPPARKS_NS {
 
@@ -73,6 +86,10 @@ class Crystallography {
   void quat_from_Bunge(double,double,double,double*);
   void compute_misorientation_angles(std::string);
   double* load_symm_table(int &N_symm, std::string);
+
+ private:
+  std::unordered_map<Key_t, double> m_cache;
+  std::unordered_map<Key_t, double>::const_iterator m_iter;
 };
 
 }
