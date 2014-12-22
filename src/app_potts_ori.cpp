@@ -34,7 +34,7 @@ AppPottsOri::AppPottsOri(SPPARKS *spk, int narg, char **arg) :
   AppPotts(spk,narg,arg)
 {
   if (narg != 2) error->all(FLERR,"Illegal app_style command");
-  // gb_props = new Crystallography();
+  gb_props = new Crystallography();
 }
 
 /* ---------------------------------------------------------------------- */
@@ -51,11 +51,17 @@ AppPottsOri::~AppPottsOri()
 
 void AppPottsOri::input_app(char *command, int narg, char **arg)
 {
-  if (strcmp(command,"load_mobility") == 0) {
-    ;
-  }
-  else if (strcmp(command, "load_energy") == 0) {
-    ;
+  if (strcmp(command,"set_energy") == 0) {
+    if (narg < 1) error->all(FLERR,"Illegal energy command");
+    if (strcmp(arg[0],"uniform") == 0) {
+      ;
+    }
+    else if (strcmp(arg[0],"read_shockley") == 0 && narg == 2) {
+      fprintf(stdout,"Using read shockley with high angle cutoff %s degrees\n", arg[1]);
+      double theta_max = static_cast<double>(atof(arg[1]));
+      gb_props->set_RS(theta_max);
+    }
+    else error->all(FLERR,"Illegal energy command");
   }
   else error->all(FLERR,"Unrecognized command");
 }

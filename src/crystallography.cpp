@@ -19,9 +19,12 @@
 #include "error.h"
 #include "crystallography.h"
 
+#include "signal.h"
+
 using namespace SPPARKS_NS;
 
 Crystallography::Crystallography() {
+
   quaternion_buf = NULL;
   
   /* default to uniform energy and mobility */
@@ -30,7 +33,10 @@ Crystallography::Crystallography() {
 
   /* default to cubic symmetry */
   n_symm = 0;
-  load_symmetry_operator("cubic");
+  e_theta_max = 15;
+  m_theta_max = 15;
+  fprintf(stdout, "crystallography constructor\n");
+  load_symmetry_operator();
 }
 
 Crystallography::~Crystallography() {
@@ -52,28 +58,13 @@ double Crystallography::mobility(int i, int j) {
   return (*this.*mobility_pt)(i,j);
 }
 
-void Crystallography::set_options(int argc, char** argv) {
-  int i = 0;
-  while (i < argc) {
-    if (strcmp(argv[i],"Energy") == 0) {
-      i++;
-      if (strcmp(argv[i],"ReadShockley") == 0) {
-	i++;
-	this->energy_pt = &Crystallography::read_shockley_energy;
-      }
-      else ; // error->all(FLERR,"Crystallography energy function not implemented.");
-    }
-    else if (strcmp(argv[i],"Mobility") == 0) {
-      i++;
-      if (strcmp(argv[i],"HwangHumphreys") == 0) {
-	i++;
-	this->energy_pt = &Crystallography::hwang_humphreys_mobility;
-      }
-      else ; // error->all(FLERR,"Crystallography mobility function not implemented.");
-    }
-    else ; // error->all(FLERR,"illegal crystallography option.");
-    i++;
-  }
+void Crystallography::set_RS(double theta_max) {
+  e_theta_max = theta_max;
+  this->energy_pt = &Crystallography::read_shockley_energy;
+}
+void Crystallography::set_HH(double theta_max) {
+  m_theta_max = theta_max;
+  this->energy_pt = &Crystallography::hwang_humphreys_mobility;
 }
 
 double Crystallography::uniform_energy(int i, int j) {
@@ -86,9 +77,12 @@ double Crystallography::uniform_mobility(int i, int j) {
 
 double Crystallography::read_shockley_energy(int i, int j) {
   double misori;
+  if (i == j)
+    return 0;
   misori = get_misorientation_angle(i,j);
+  misori = misori / e_theta_max;
   // do read/shockley formula
-  return 1.0;
+  return misori * (1 - log(misori));
 }
 
 double Crystallography::hwang_humphreys_mobility(int i, int j) {
@@ -109,24 +103,27 @@ void Crystallography::copy_euler_angle_data(float *data, int num_orientations) {
 void Crystallography::copy_quaternion_data(float *data, int num_orientations) {
   int data_size = 4 * num_orientations;
   quaternion_buf = new double[data_size];
-  for (int i = 0; i < num_orientations; i+=4) {
+  for (int i = 0; i < num_orientations; i++) {
     for (int j = 0; j < 4; j++) {
-      quaternion_buf[i+j] = static_cast<double>(data[i+j]);
+      quaternion_buf[(4*i)+j] = static_cast<double>(data[(4*i)+j]);
       // Eigen::Map<Eigen::Quaternion<double> > q(&quaternion_buf[0]);
-      QuatMap q(&quaternion_buf[i]);
+      QuatMap q(&quaternion_buf[4*i]);
       q.normalize();
     }
   }
 }
 
-void Crystallography::load_symmetry_operator(std::string symmetry_style) {
+void Crystallography::load_symmetry_operator() {
   /* Read Prof. Rollett's quaternion symmetry files into raw buffer */
+  fprintf(stdout,"loading symmetry operator\n");
   std::string blank;
-  std::string filename = "quat.symm." + symmetry_style;
+  // std::string filename = "quat.symm." + symmetry_style;
   std::ifstream infile("quat.symm.cubic");
-
-  std::getline(infile, blank); // first line is a file header
+  
+  std::getline(infile, blank); // ignore first line
+  std::cout << blank << std::endl;
   infile >> n_symm; // second line
+  fprintf(stdout, "symmetry: %d\n", n_symm);
   symmetry_buf = new double[4 * n_symm];
   
   for (int i = 0; i < n_symm; i++) {
@@ -135,11 +132,50 @@ void Crystallography::load_symmetry_operator(std::string symmetry_style) {
     infile >> symmetry_buf[j+1]; // y
     infile >> symmetry_buf[j+2]; // z
     infile >> symmetry_buf[j+3]; // w
-    QuatMap q(&symmetry_buf[i]);
+    QuatMap q(&symmetry_buf[4*i]);
     q.normalize();
+  }
+  for (int i = 0; i < n_symm; i++) {
+    int j = 4 * i;
+    QuatMap q(&symmetry_buf[j]);
   }
 }
 
 double Crystallography::get_misorientation_angle(int i, int j) {
-  ;
+  // compute misorientation angle
+  // axis is not necessarily in the FZ
+  double wmin = 999999;
+  AxAng a;
+  Quat qmis, q, qmin;
+  
+  QuatMap q_i(&quaternion_buf[4*i]);
+  QuatMap q_j(&quaternion_buf[4*j]);
+  
+  qmis = q_j * q_i.inverse();
+  qmis.normalize();
+  // loop over crystal symmetry operators for grain i
+  for (int ii = 0; ii < n_symm; ii++) {
+    QuatMapConst symm_i(&symmetry_buf[4*ii]);
+    q = symm_i * qmis;
+    q.normalize();
+    a = AxAng(q);
+    if (a.angle() > M_PI) {
+      a.angle() = 2*M_PI - a.angle();
+    }
+    if (a.angle() < wmin) {
+      qmin = q;
+      wmin = a.angle();
+    }
+  }
+
+  return wmin * static_cast<double>(180 / M_PI);
 } 
+
+double Crystallography::get_cubic_misorientation_angle(int i, int j) {
+  Quat misori;
+  double wmin = 999999;
+  QuatMapConst q_i(&quaternion_buf[4*i]);
+  QuatMapConst q_j(&quaternion_buf[4*j]);
+  misori = q_i * q_j.conjugate();
+  return wmin;
+}

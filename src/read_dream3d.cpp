@@ -223,8 +223,9 @@ void ReadDream3d::read_grain_ids() {
   if (nvalues != 1)
     error->all(FLERR, "read_dream3d implemented only for apps with 1 INT per site.");
   char **values = new char*[nvalues];
-  for (i=0; i < nvalues; i++)
-    values[m] = new char[256];
+  for (i=0; i < nvalues; i++) {
+    values[i] = new char[256];
+  }
 
   tagint nread = 0;
   tagint nglobal = app->nglobal;
