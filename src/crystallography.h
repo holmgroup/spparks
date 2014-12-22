@@ -58,7 +58,7 @@ class Crystallography {
   double get_cubic_misorientation_angle(int,int);
   
   Quat misori(Quat,Quat,int,double*);
-  void load_symmetry_operator();
+  bool load_symmetry_operator();
   
   bool cubic_FZ_test(Quat);
   double* load_euler_orientations_as_quats(char*);

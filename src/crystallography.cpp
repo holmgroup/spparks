@@ -80,6 +80,12 @@ double Crystallography::read_shockley_energy(int i, int j) {
   if (i == j)
     return 0;
   misori = get_misorientation_angle(i,j);
+
+  // high angle cutoff
+  misori = std::min(misori, e_theta_max);
+  // minimum allowed energy
+  misori = std::max(misori, 0.1);
+  
   misori = misori / e_theta_max;
   // do read/shockley formula
   return misori * (1 - log(misori));
@@ -113,12 +119,14 @@ void Crystallography::copy_quaternion_data(float *data, int num_orientations) {
   }
 }
 
-void Crystallography::load_symmetry_operator() {
+bool Crystallography::load_symmetry_operator() {
   /* Read Prof. Rollett's quaternion symmetry files into raw buffer */
   fprintf(stdout,"loading symmetry operator\n");
   std::string blank;
   // std::string filename = "quat.symm." + symmetry_style;
   std::ifstream infile("quat.symm.cubic");
+  if (!infile)
+    return false;
   
   std::getline(infile, blank); // ignore first line
   std::cout << blank << std::endl;
@@ -139,6 +147,7 @@ void Crystallography::load_symmetry_operator() {
     int j = 4 * i;
     QuatMap q(&symmetry_buf[j]);
   }
+  return true;
 }
 
 double Crystallography::get_misorientation_angle(int i, int j) {
@@ -148,8 +157,8 @@ double Crystallography::get_misorientation_angle(int i, int j) {
   AxAng a;
   Quat qmis, q, qmin;
   
-  QuatMap q_i(&quaternion_buf[4*i]);
-  QuatMap q_j(&quaternion_buf[4*j]);
+  QuatMapConst q_i(&quaternion_buf[4*i]);
+  QuatMapConst q_j(&quaternion_buf[4*j]);
   
   qmis = q_j * q_i.inverse();
   qmis.normalize();
