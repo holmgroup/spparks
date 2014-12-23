@@ -75,13 +75,23 @@ void AppPottsOri::input_app(char *command, int narg, char **arg)
     }
     else error->all(FLERR, "Illegal mobility command");
   }
-  else if (strcmp(command,"misorientation") == 0) {
+  else if (strcmp(command,"precompute") == 0) {
     if (narg == 1) {
-      if (strcmp(arg[0],"precomputed") == 0 || strcmp(arg[0],"cached") == 0) 
-	gb_props->setup_misorientation(arg[0]);
-      else error->all(FLERR,"Illegal misorientation command.");
-    }
-    else error->all(FLERR, "Illegal misorientation command.");
+      if (strcmp(arg[0],"misorientation") == 0
+	  || strcmp(arg[0],"energy") == 0
+	  || strcmp(arg[0],"mobility") == 0) {
+	gb_props->setup_precomputed(arg[0]);
+      } else error->all(FLERR,"Illegal precompute option.");
+    } else error->all(FLERR,"Illegal precompute command.");
+  }
+  else if (strcmp(command,"cache") == 0) {
+    if (narg == 1) {
+      if (strcmp(arg[0],"misorientation") == 0
+	  || strcmp(arg[0],"energy") == 0
+	  || strcmp(arg[0],"mobility") == 0) {
+	gb_props->setup_cached(arg[0]);
+      } else error->all(FLERR,"Illegal cache option.");
+    } else error->all(FLERR,"Illegal cache command.");
   }
   else error->all(FLERR,"Unrecognized command");
 }

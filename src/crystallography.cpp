@@ -117,27 +117,51 @@ void Crystallography::use_hwang_humphreys(double theta_max) {
   this->energy_pt = &Crystallography::hwang_humphreys_mobility;
 }
 
-void Crystallography::setup_misorientation(char* style) {
-
-  if (strcmp(style,"precomputed") == 0) {
+void Crystallography::setup_precomputed(char* style) {
+  double (Crystallography::*compute)(int,int);
+  if (strcmp(style,"misorientation") == 0) {
     fprintf(stdout,"allocating misorientation lookup table...\n");
-    // grain_ids are 1-indexed, and g
-    int misori_size = (n_orientations+1)*(n_orientations+1);
-    misorientation_buf = new double[misori_size];
-    int index = 0;
-    for (int i = 0; i <= n_orientations; i++) {
-      for (int j = 0; j <= n_orientations; j++) {
-	index = i*(n_orientations+1) + j;
-	if (i == j || i == 0 || j == 0)
-	  misorientation_buf[index] = 0;
-	else
-	  misorientation_buf[index] = compute_misorientation_angle(i,j);
-      }
+    compute = &Crystallography::compute_misorientation_angle;
+  }
+  else if (strcmp(style,"energy") == 0) {
+    fprintf(stdout,"allocating energy lookup table...\n");
+    compute = &Crystallography::energy;
+  }
+  else if (strcmp(style,"mobility") == 0) {
+    fprintf(stdout,"allocating mobility lookup table...\n");
+    compute = &Crystallography::mobility;
+  }
+
+  // grain_ids are 1-indexed, and g
+  int size = (n_orientations+1)*(n_orientations+1);
+  double* buf = new double[size];
+  
+  int index = 0;
+  for (int i = 0; i <= n_orientations; i++) {
+    for (int j = 0; j <= n_orientations; j++) {
+      index = i*(n_orientations+1) + j;
+      if (i == j || i == 0 || j == 0)
+	buf[index] = 0;
+      else
+	buf[index] = (*this.*compute)(i,j);
     }
+  }
+  if (strcmp(style,"misorientation") == 0) {
+    misorientation_buf = buf;
     this->misorientation_pt = &Crystallography::precomputed_misorientation_angle;
   }
-  
-  else if (strcmp(style,"cached") == 0) {
+  else if (strcmp(style,"energy") == 0) {
+    energy_buf = buf;
+    this->energy_pt = &Crystallography::precomputed_energy;
+  }
+  else if (strcmp(style,"mobility") == 0) {
+    mobility_buf = buf;
+    this->mobility_pt = &Crystallography::precomputed_mobility;
+  }
+}
+
+void Crystallography::setup_cached(char* style) {
+  if (strcmp(style,"misorientation") == 0) {
     // set up cache data structure
     fprintf(stdout,"using hash table 'cache' for misorientations\n");
     this->misorientation_pt = &Crystallography::cached_misorientation_angle;
@@ -152,15 +176,46 @@ double Crystallography::precomputed_misorientation_angle(int i, int j) {
 }
 
 double Crystallography::cached_misorientation_angle(int i, int j) {
-  Key_t key (i, j);
-  m_iter = m_cache.find(key);
-  if (m_iter != m_cache.end()) {
-    return m_iter->second;
-  }
+  Key_t key (std::min(i, j), std::max(i,j));
+  cache_iter = mis_cache.find(key);
+  if (cache_iter != mis_cache.end())
+    return cache_iter->second;
 
   double misori = compute_misorientation_angle(i, j);
-  m_cache.insert(std::make_pair(key, misori));
+  mis_cache.insert(std::make_pair(key, misori));
   return misori;
+}
+
+double Crystallography::precomputed_energy(int i, int j) {
+  int index = i * (n_orientations+1) + j;
+  return energy_buf[index];
+}
+
+double Crystallography::cached_energy(int i, int j) {
+  Key_t key (std::min(i, j), std::max(i,j));
+  cache_iter = e_cache.find(key);
+  if (cache_iter != e_cache.end())
+    return cache_iter->second;
+
+  double e = energy(i,j);
+  e_cache.insert(std::make_pair(key, e));
+  return e;
+}
+
+double Crystallography::precomputed_mobility(int i, int j) {
+  int index = i * (n_orientations+1) + j;
+  return mobility_buf[index];
+}
+
+double Crystallography::cached_mobility(int i, int j) {
+  Key_t key (std::min(i, j), std::max(i,j));
+  cache_iter = m_cache.find(key);
+  if (cache_iter != m_cache.end())
+    return cache_iter->second;
+
+  double m = mobility(i,j);
+  m_cache.insert(std::make_pair(key, m));
+  return m;
 }
 
 /* --- misorientation calculations ---- */

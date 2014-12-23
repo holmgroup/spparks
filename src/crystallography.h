@@ -57,10 +57,13 @@ class Crystallography {
   void copy_quaternion_data(float*, int);
   void use_read_shockley(double);
   void use_hwang_humphreys(double);
-  void setup_misorientation(char*);
+  void setup_precomputed(char*);
+  void setup_cached(char*);
   
  protected:
   double* misorientation_buf;
+  double* energy_buf;
+  double* mobility_buf;
   
   double (Crystallography::*energy_pt)(int,int);
   double (Crystallography::*mobility_pt)(int,int);
@@ -72,7 +75,13 @@ class Crystallography {
   double hwang_humphreys_mobility(int,int);
 
   double precomputed_misorientation_angle(int,int);
+  double precomputed_energy(int,int);
+  double precomputed_mobility(int,int);
+  
   double cached_misorientation_angle(int,int);
+  double cached_energy(int,int);
+  double cached_mobility(int,int);
+  
   double compute_misorientation_angle(int,int);
   double compute_cubic_misorientation_angle(int,int);
   
@@ -88,8 +97,10 @@ class Crystallography {
   double* load_symm_table(int &N_symm, std::string);
 
  private:
+  std::unordered_map<Key_t, double> mis_cache;
+  std::unordered_map<Key_t, double> e_cache;
   std::unordered_map<Key_t, double> m_cache;
-  std::unordered_map<Key_t, double>::const_iterator m_iter;
+  std::unordered_map<Key_t, double>::const_iterator cache_iter;
 };
 
 }
