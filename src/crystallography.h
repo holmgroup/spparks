@@ -46,7 +46,7 @@ class Crystallography {
   double *symmetry_buf;
 
   double e_theta_max;
-  double m_theta_max;
+  double m_theta_max, HH_n, HH_d;
   
   Crystallography();
   ~Crystallography();
@@ -56,7 +56,7 @@ class Crystallography {
   void copy_euler_angle_data(float*, int);
   void copy_quaternion_data(float*, int);
   void use_read_shockley(double);
-  void use_hwang_humphreys(double);
+  void use_hwang_humphreys(double,double,double);
   void setup_precomputed(char*);
   void setup_cached(char*);
   

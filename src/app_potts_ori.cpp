@@ -66,12 +66,50 @@ void AppPottsOri::input_app(char *command, int narg, char **arg)
   else if (strcmp(command,"set_mobility") == 0 ) {
     if (narg < 1) error->all(FLERR,"Illegal mobility command");
     if (strcmp(arg[0],"uniform") == 0 && narg == 1) {
-      ;
+      // uniform mobility is the default behavior for SPPARKS::Crystallography
+      ; 
     }
-    else if (strcmp(arg[0],"hwang_humphreys") == 0 && narg == 2) {
-      double theta_max = static_cast<double>(atof(arg[1]));
-      gb_props->use_hwang_humphreys(theta_max);
-      fprintf(stdout,"Using read shockley with high angle cutoff %s degrees\n", arg[1]);
+    else if (strcmp(arg[0],"hwang_humphreys") == 0) {
+      // default values:
+      double theta_max = 15;
+      double n = 5;
+      double d = 4;
+      if (narg == 1) {
+	fprintf(stdout,"Using Hwang/Humphreys with defaults: ");
+      }
+      else if (narg == 7) {
+	fprintf(stdout,"Using Hwang/Humphreys with: ");
+	int iarg = 1; // arg[0] was "hwang_humphreys"
+	bool theta_set, n_set, d_set = false;
+
+	while (iarg < narg) {
+	  if (strcmp(arg[iarg],"theta_max") == 0){
+	    iarg++;
+	    theta_max = static_cast<double>(atof(arg[iarg++]));
+	    fprintf(stdout,"theta_max = %f\n", theta_max);
+	    theta_set = true;
+	  }
+	  else if (strcmp(arg[iarg],"n") == 0) {
+	    iarg++;
+	    n = static_cast<double>(atof(arg[iarg++]));
+	    n_set = true;
+	  }
+	  else if (strcmp(arg[iarg],"d") == 0) {
+	    iarg++;
+	    d = static_cast<double>(atof(arg[iarg++]));
+	    d_set = true;
+	  }
+	  else error->all(FLERR,"Error using Hwang/Humphreys: set theta_max, n, and d");
+	}
+	if (!(theta_set && n_set && d_set))
+	  error->all(FLERR,"Error using Hwang/Humphreys: set each of  theta_max, n, and d");
+      }
+      else error->all(FLERR,"Illegal Hwang/Humphreys parameters");
+
+      gb_props->use_hwang_humphreys(theta_max, n, d);
+      fprintf(stdout,"theta_max = %f, ", theta_max);
+      fprintf(stdout,"n = %f, ", n);
+      fprintf(stdout,"d = %f\n", d);
     }
     else error->all(FLERR, "Illegal mobility command");
   }
@@ -88,8 +126,9 @@ void AppPottsOri::input_app(char *command, int narg, char **arg)
     if (narg == 1) {
       if (strcmp(arg[0],"misorientation") == 0
 	  || strcmp(arg[0],"energy") == 0
-	  || strcmp(arg[0],"mobility") == 0) {
-	gb_props->setup_cached(arg[0]);
+	  || strcmp(arg[0],"mobility") == 0)
+	{
+	  gb_props->setup_cached(arg[0]);
       } else error->all(FLERR,"Illegal cache option.");
     } else error->all(FLERR,"Illegal cache command.");
   }

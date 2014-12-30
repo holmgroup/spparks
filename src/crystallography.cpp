@@ -80,10 +80,24 @@ double Crystallography::read_shockley_energy(int i, int j) {
 }
 
 double Crystallography::hwang_humphreys_mobility(int i, int j) {
-  double misori;
+  double misori = 0;
+  double mobility = 1;
+  if (i == j)
+    return 0;
+  
   misori = misorientation(i, j);
+  
+  // high angle cutoff
+  misori = std::min(misori, m_theta_max);
+  // minimum allowed mobility
+  misori = std::max(misori, 0.1);
+
+  misori = misori / m_theta_max;
+  
   // do the hwang/humphreys formula
-  return 1.0;
+  // HH_n and HH_d are the experimental parameters
+  mobility = 1 - exp(-HH_n * pow(misori, HH_d));
+  return mobility;
 }
 
 /* ---------------------------------------------------- */
@@ -111,9 +125,18 @@ void Crystallography::use_read_shockley(double theta_max) {
   this->energy_pt = &Crystallography::read_shockley_energy;
 }
 
-void Crystallography::use_hwang_humphreys(double theta_max) {
+void Crystallography::use_hwang_humphreys(double theta_max, double n, double d) {
+  HH_n = 5;
+  HH_d = 4;
+
   if (theta_max > 0)
     m_theta_max = theta_max;
+
+  if (n > 0)
+    HH_n = n;
+  if (d > 0)
+    HH_d = d;
+  
   this->energy_pt = &Crystallography::hwang_humphreys_mobility;
 }
 
