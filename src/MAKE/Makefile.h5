@@ -7,17 +7,17 @@ SHELL = /bin/sh
 # specify flags and libraries needed for your compiler
 
 CC =		mpicc
-CCFLAGS =	-g -ggdb -fno-omit-frame-pointer
+CCFLAGS =	-O2 -std=c++11
 DEPFLAGS =	-M
 SHFLAGS =	-fPIC
 
 LINK =		mpic++
-LINKFLAGS =	-g -ggdb -fno-omit-frame-pointer
+LINKFLAGS =	-O2 -std=c++11
 LIB =	  	-lstdc++
 SIZE =		size
 
 ARCHIVE =	ar
-ARFLAGS =	-rc -g
+ARFLAGS =	-rc
 SHLIBFLAGS =	-shared
 
 # ---------------------------------------------------------------------
@@ -26,7 +26,7 @@ SHLIBFLAGS =	-shared
 
 # SPPARKS ifdef options, see doc/Section_start.html
 
-SPK_INC =	-DSPPARKS_GZIP -DSPPARKS_JPEG
+SPK_INC =	-DSPPARKS_GZIP -DSPPARKS_JPEG -DSPPARKS_HDF5
 
 # MPI library, can be src/STUBS dummy lib
 # INC = path for mpi.h, MPI compiler settings
@@ -46,13 +46,19 @@ JPG_INC =
 JPG_PATH = 	
 JPG_LIB =	-ljpeg
 
+# HDF5 library, only needed if -DSPPARKS_HDF5 is set in SPPARKS_INC
+
+HDF_INC =   # /usr/include/hdf5_hl.h
+HDF_PATH =  /usr/lib/libhdf5_hl.so /usr/lib/libhdf5_cpp.so
+HDF_LIB =   -lhdf5
+
 # ---------------------------------------------------------------------
 # build rules and dependencies
 # no need to edit this section
 
-EXTRA_INC = $(SPK_INC) $(MPI_INC) $(JPG_INC)
-EXTRA_PATH = $(MPI_PATH) $(JPG_PATH)
-EXTRA_LIB = $(MPI_LIB) $(JPG_LIB)
+EXTRA_INC = $(SPK_INC) $(MPI_INC) $(JPG_INC) $(HDF_INC)
+EXTRA_PATH = $(MPI_PATH) $(JPG_PATH) $(HDF_PATH)
+EXTRA_LIB = $(MPI_LIB) $(JPG_LIB) $(HDF_LIB)
 
 # Link target
 
