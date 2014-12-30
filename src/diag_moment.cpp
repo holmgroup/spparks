@@ -262,7 +262,7 @@ void DiagMoment::compute()
     if (me == 0)
       maxbuf = 4 * grains.size();
     MPI_Bcast(&maxbuf, 1,MPI_INT,0,world);
-    fprintf(stdout,"%d\n",maxbuf);
+
     dbufcent = new double[maxbuf];
 
     if (me == 0) {
