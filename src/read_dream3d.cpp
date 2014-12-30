@@ -25,6 +25,7 @@
 #include "create_sites.h"
 #include "error.h"
 #include "memory.h"
+#include "crystallography.h"
 
 #include "input.h"
 
@@ -147,7 +148,7 @@ void ReadDream3d::command(int narg, char **arg)
   // Read orientation data
   // do this if specified and if app_style allows orientations
   if (load_orientations)
-    read_average_eulers();
+    read_average_quaternions();
 
   // close file
   std::cout << "Finished reading dream3d file" << std::endl;
@@ -222,8 +223,9 @@ void ReadDream3d::read_grain_ids() {
   if (nvalues != 1)
     error->all(FLERR, "read_dream3d implemented only for apps with 1 INT per site.");
   char **values = new char*[nvalues];
-  for (i=0; i < nvalues; i++)
-    values[m] = new char[256];
+  for (i=0; i < nvalues; i++) {
+    values[i] = new char[256];
+  }
 
   tagint nread = 0;
   tagint nglobal = app->nglobal;
@@ -276,13 +278,13 @@ void ReadDream3d::read_grain_ids() {
   return;
 }
 
-void ReadDream3d::read_average_eulers() {
+void ReadDream3d::read_average_quaternions() {
   int num_grains = 0;
   int num_values = 0;
 #ifdef SPPARKS_HDF5
   if (me == 0) {
     hsize_t dims[2];
-    h5_status = H5LTget_dataset_info(file_id,"/VoxelDataContainer/FIELD_DATA/EulerAngles",
+    h5_status = H5LTget_dataset_info(file_id,"/VoxelDataContainer/FIELD_DATA/AvgQuats",
 				     dims,NULL,NULL);
     num_grains = dims[0];
     num_values = dims[1];
@@ -290,17 +292,17 @@ void ReadDream3d::read_average_eulers() {
 #endif
   
   MPI_Bcast(&num_grains,1,MPI_INT, 0, world);
-  int data_size = 3 * num_grains;
+  int data_size = 4 * num_grains;
   float* data = new float[data_size];
   
 #ifdef SPPARKS_HDF5
   if (me == 0) {
-    h5_status = H5LTread_dataset_float(file_id,"/VoxelDataContainer/FIELD_DATA/EulerAngles",data);
+    h5_status = H5LTread_dataset_float(file_id,"/VoxelDataContainer/FIELD_DATA/AvgQuats",data);
   }
 #endif
 
   /* root proc broadcasts orientation data */
   MPI_Bcast(data, data_size, MPI_FLOAT, 0, world);
 
-  app_potts_ori->copy_euler_angle_data(data,num_grains);
+  app_potts_ori->gb_props->copy_quaternion_data(data,num_grains);
 }

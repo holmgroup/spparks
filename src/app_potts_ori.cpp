@@ -20,6 +20,7 @@
 #include "random_mars.h"
 #include "random_park.h"
 #include "error.h"
+#include "crystallography.h"
 
 #include <map>
 #include <algorithm>
@@ -33,22 +34,14 @@ AppPottsOri::AppPottsOri(SPPARKS *spk, int narg, char **arg) :
   AppPotts(spk,narg,arg)
 {
   if (narg != 2) error->all(FLERR,"Illegal app_style command");
-
-  // default to isotropic potts model
-  energy = &AppPottsOri::uniform_energy;
-  mobility = &AppPottsOri::uniform_mobility;
-  e_table = m_table = NULL;
+  gb_props = new Crystallography();
 }
 
 /* ---------------------------------------------------------------------- */
 
 AppPottsOri::~AppPottsOri()
 {
-  // sites and unique are deleted by the ~AppPotts virtual destructor
-  // delete [] sites;
-  // delete [] unique;
-  delete [] e_table;
-  delete [] m_table;
+  ;
 }
 
 
@@ -58,26 +51,86 @@ AppPottsOri::~AppPottsOri()
 
 void AppPottsOri::input_app(char *command, int narg, char **arg)
 {
-  if (strcmp(command,"load_mobility") == 0) {
-    if (narg != 1) error->all(FLERR,"Illegal load_mobility command");
-    // extract the filename for mobility lookup table
-    char *m_filename = arg[0];
-    // set fn pointer (*mobility) to the lookup function
-    mobility = &AppPottsOri::lookup_mobility;
-    // load the mobility lookup table *m_table
-    fprintf(stdout, "loading mobility lookup table...");
-    m_table = load_table(m_filename);
-    if (m_table == NULL) fprintf(stdout, "problem allocating m_table\n");
-    fprintf(stdout, " finished.\n");
+  if (strcmp(command,"set_energy") == 0) {
+    if (narg < 1) error->all(FLERR,"Illegal energy command");
+    if (strcmp(arg[0],"uniform") == 0 && narg == 1) {
+      ;
+    }
+    else if (strcmp(arg[0],"read_shockley") == 0 && narg == 2) {
+      double theta_max = static_cast<double>(atof(arg[1]));
+      gb_props->use_read_shockley(theta_max);
+      fprintf(stdout,"Using read shockley with high angle cutoff %s degrees\n", arg[1]);
+    }
+    else error->all(FLERR,"Illegal energy command");
   }
-  else if (strcmp(command, "load_energy") == 0) {
-    if (narg != 1) error->all(FLERR,"Illegal load_energy command");
-    // extract the filename for energy lookup table
-    char *e_filename = arg[0];
-    // set fn pointer (*energy) to the lookup function
-    energy = &AppPottsOri::lookup_energy;
-    // load the energy lookup table *e_table
-    e_table = load_table(e_filename);
+  else if (strcmp(command,"set_mobility") == 0 ) {
+    if (narg < 1) error->all(FLERR,"Illegal mobility command");
+    if (strcmp(arg[0],"uniform") == 0 && narg == 1) {
+      // uniform mobility is the default behavior for SPPARKS::Crystallography
+      ; 
+    }
+    else if (strcmp(arg[0],"hwang_humphreys") == 0) {
+      // default values:
+      double theta_max = 15;
+      double n = 5;
+      double d = 4;
+      if (narg == 1) {
+	fprintf(stdout,"Using Hwang/Humphreys with defaults: ");
+      }
+      else if (narg == 7) {
+	fprintf(stdout,"Using Hwang/Humphreys with: ");
+	int iarg = 1; // arg[0] was "hwang_humphreys"
+	bool theta_set, n_set, d_set = false;
+
+	while (iarg < narg) {
+	  if (strcmp(arg[iarg],"theta_max") == 0){
+	    iarg++;
+	    theta_max = static_cast<double>(atof(arg[iarg++]));
+	    fprintf(stdout,"theta_max = %f\n", theta_max);
+	    theta_set = true;
+	  }
+	  else if (strcmp(arg[iarg],"n") == 0) {
+	    iarg++;
+	    n = static_cast<double>(atof(arg[iarg++]));
+	    n_set = true;
+	  }
+	  else if (strcmp(arg[iarg],"d") == 0) {
+	    iarg++;
+	    d = static_cast<double>(atof(arg[iarg++]));
+	    d_set = true;
+	  }
+	  else error->all(FLERR,"Error using Hwang/Humphreys: set theta_max, n, and d");
+	}
+	if (!(theta_set && n_set && d_set))
+	  error->all(FLERR,"Error using Hwang/Humphreys: set each of  theta_max, n, and d");
+      }
+      else error->all(FLERR,"Illegal Hwang/Humphreys parameters");
+
+      gb_props->use_hwang_humphreys(theta_max, n, d);
+      fprintf(stdout,"theta_max = %f, ", theta_max);
+      fprintf(stdout,"n = %f, ", n);
+      fprintf(stdout,"d = %f\n", d);
+    }
+    else error->all(FLERR, "Illegal mobility command");
+  }
+  else if (strcmp(command,"precompute") == 0) {
+    if (narg == 1) {
+      if (strcmp(arg[0],"misorientation") == 0
+	  || strcmp(arg[0],"energy") == 0
+	  || strcmp(arg[0],"mobility") == 0) {
+	gb_props->setup_precomputed(arg[0]);
+      } else error->all(FLERR,"Illegal precompute option.");
+    } else error->all(FLERR,"Illegal precompute command.");
+  }
+  else if (strcmp(command,"cache") == 0) {
+    if (narg == 1) {
+      if (strcmp(arg[0],"misorientation") == 0
+	  || strcmp(arg[0],"energy") == 0
+	  || strcmp(arg[0],"mobility") == 0)
+	{
+	  gb_props->setup_cached(arg[0]);
+      } else error->all(FLERR,"Illegal cache option.");
+    } else error->all(FLERR,"Illegal cache command.");
   }
   else error->all(FLERR,"Unrecognized command");
 }
@@ -112,24 +165,14 @@ double AppPottsOri::site_energy(int i)
   int isite = spin[i];
   int jsite = 0;
   double eng = 0;
-  double eng_inc = 0;
   for (int j = 0; j < numneigh[i]; j++) {
     jsite = spin[neighbor[i][j]];
     if (isite != jsite) {
-      eng += (this->*energy)(isite, jsite);
+      eng += gb_props->energy(isite, jsite);
     }
   }
   return eng;
 }
-// double AppPottsOri::site_energy(int i)
-// {
-//   int isite = spin[i];
-//   int eng = 0;
-//   for (int j = 0; j < numneigh[i]; j++)
-//     if (isite != spin[neighbor[i][j]]) eng++;
-//   return (double) eng;
-// }
-
 
 /* ----------------------------------------------------------------------
    rKMC method
@@ -149,7 +192,7 @@ void AppPottsOri::site_event_rejection(int i, RandomPark *random)
   if (iran > nspins) iran = nspins;
   spin[i] = iran;
   double efinal = site_energy(i);
-  double M = (this->*mobility)(spin[i], oldstate);
+  double M = gb_props->mobility(spin[i], oldstate);
   // accept or reject via Boltzmann criterion
   // null bin extends to nspins
 
@@ -199,8 +242,8 @@ double AppPottsOri::site_propensity(int i)
 
   // for each flip:
   // compute energy difference between initial and final state
-  // if downhill or no energy change, propensity = 1
-  // if uphill energy change, propensity = Boltzmann factor
+  // if downhill or no energy change, propensity = Reduced mobility M
+  // if uphill energy change, propensity = M * Boltzmann factor
 
   int oldstate = spin[i];
   double einitial = site_energy(i);
@@ -211,7 +254,7 @@ double AppPottsOri::site_propensity(int i)
   for (m = 0; m < nevent; m++) {
     spin[i] = unique[m];
     efinal = site_energy(i);
-    M = (this->*mobility)(spin[i], oldstate);
+    M = gb_props->mobility(spin[i], oldstate);
     if (efinal <= einitial) prob += M;
     else if (temperature > 0.0) prob += M * exp((einitial-efinal)*t_inverse);
   }
@@ -252,7 +295,7 @@ void AppPottsOri::site_event(int i, RandomPark *random)
 
     spin[i] = value;
     efinal = site_energy(i);
-    M = (this->*mobility)(spin[i], oldstate);
+    M = gb_props->mobility(spin[i], oldstate);
     if (efinal <= einitial) prob += M;
     else if (temperature > 0.0) prob += M * exp((einitial-efinal)*t_inverse);
     if (prob >= threshhold) break;
@@ -275,76 +318,4 @@ void AppPottsOri::site_event(int i, RandomPark *random)
   }
 
   solve->update(nsites,sites,propensity);
-}
-
-
-double AppPottsOri::uniform_energy(int ispin, int jspin) {
-  return 1;
-}
-
-double AppPottsOri::uniform_mobility(int ispin, int jspin) {
-  return 1;
-}
-
-double AppPottsOri::lookup_energy(int ispin, int jspin) {
-  int r,c;
-  c = std::min(ispin, jspin);
-  r = std::max(ispin, jspin);
-  int address = ((r * (r+1)) / 2) + c;
-  return e_table[address];
-}
-
-double AppPottsOri::lookup_mobility(int ispin, int jspin) {
-  int r,c;
-  c = std::min(ispin, jspin);
-  r = std::max(ispin, jspin);
-  int address = ((r * (r+1)) / 2) + c;
-  return m_table[address];
-}
-
-double *AppPottsOri::load_table(char *filename) {
-  // allocate sparse triangular lookup table
-  // including the diagonal elements
-  // lookup table should contain entries for spin == 0
-  // this way special energies can be assigned to particle interfaces
-  // and it's easier to think about zero-based arrays
-
-  // fragile header-parsing code, updates nspins
-  std::string line;
-  std::ifstream infile(filename);
-  if (!infile.is_open()) error->all(FLERR,"Could not open lookup table file");
-  std::getline(infile, line); // ignore the first line
-  infile >> nspins >> line; // second line of file header is "$nspins spins"
-
-  int table_size = (nspins+1) + (nspins* (nspins+1)) / 2;
-  double *table;
-  table = new double[table_size];
-
-  double value = -1;
-  for (int r = 0; r < nspins+1; r++) {
-    for (int c = 0; c <= r; c++) {
-      int address = ((r * (r+1)) / 2) + c;
-      infile >> value;
-      if (value < 0.0 || value > 1.0) error->all(FLERR,"Improperly specified lookup table");
-      table[address] = value;
-    }
-  }
-
-  return table;
-}
-
-void AppPottsOri::copy_euler_angle_data(float *data, int num_orientations) {
-  int data_size = 3 * num_orientations;
-  float* euler_buf = new float[data_size];
-  for (int i = 0; i < data_size; i++) {
-    euler_buf[i] = data[i];
-  }
-}
-
-void AppPottsOri::copy_quaternion_data(float *data, int num_orientations) {
-  int data_size = 4 * num_orientations;
-  float* quat_buf = new float[data_size];
-  for (int i = 0; i < data_size; i++) {
-    quat_buf[i] = data[i];
-  }
 }
