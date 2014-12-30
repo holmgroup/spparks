@@ -137,7 +137,7 @@ void Crystallography::use_hwang_humphreys(double theta_max, double n, double d) 
   if (d > 0)
     HH_d = d;
   
-  this->energy_pt = &Crystallography::hwang_humphreys_mobility;
+  this->mobility_pt = &Crystallography::hwang_humphreys_mobility;
 }
 
 void Crystallography::setup_precomputed(char* style) {
