@@ -39,8 +39,6 @@ using namespace SPPARKS_NS;
 #define DELTA 4
 #define EPSILON 1.0e-6
 
-#define NSECTIONS 3       // change when add to header::section_keywords
-
 /* ---------------------------------------------------------------------- */
 
 ReadDream3d::ReadDream3d(SPPARKS *spk) : Pointers(spk)
@@ -112,11 +110,23 @@ void ReadDream3d::command(int narg, char **arg)
 #ifdef SPPARKS_HDF5
     // make sure the file exists first
     file_id = H5Fopen(input_file, H5F_ACC_RDONLY, H5P_DEFAULT);
+    
+    // get the DREAM3D file format version and broadcast it
+    // lazy way to get the version string...
+    char* file_version = new char[16];
+    h5_status = H5LTget_attribute_string(file_id,"/", "FileVersion", file_version);
+    fprintf(stdout,"FileVersion == %s\n", file_version);
+    major_version = file_version[0];
+    if (!(major_version == '4' || major_version == '6'))
+      error->all(FLERR,"Only DREAM3D data format versions 4 and 6 supported.");
+    MPI_Bcast(&major_version, 1, MPI_CHAR, 0, world);
 #else
     error->all(FLERR,"Compile with HDF5 and set SPPARKS_HDF5 to read dream3d files.");
 #endif
   }
-   
+
+  set_dataset_paths();
+  
   // extract dimensions of simulation volume
   get_dimensions();
 
@@ -159,11 +169,24 @@ void ReadDream3d::command(int narg, char **arg)
 #endif
 }
 
+void ReadDream3d::set_dataset_paths() {
+  if (major_version == '4') {
+    dimensions_path = "/VoxelDataContainer/DIMENSIONS";
+    grain_ids_path = "/VoxelDataContainer/CELL_DATA/GrainIds";
+    quaternions_path = "/VoxelDataContainer/FIELD_DATA/AvgQuats";
+  }
+  else if (major_version == '6') {
+    dimensions_path = "/DataContainers/SyntheticVolume/DIMENSIONS";
+    grain_ids_path = "/DataContainers/SyntheticVolume/CellData/FeatureIds";
+    quaternions_path = "/DataContainers/SyntheticVolume/CellFeatureData/AvgQuats";
+  }
+}
+
 void ReadDream3d::get_dimensions() {
   int dims_buf[3] = {0, 0, 0};
 #ifdef SPPARKS_HDF5
   if (me == 0) 
-    h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/DIMENSIONS", dims_buf);
+    h5_status = H5LTread_dataset_int(file_id, dimensions_path.c_str(), dims_buf);
 #endif
 
   MPI_Bcast(dims_buf, 3, MPI_INT, 0, world);
@@ -196,7 +219,7 @@ void ReadDream3d::read_grain_ids() {
   if (me == 0) {
     data = new int[app->nglobal];
     // assuming SPPARKS and DREAM3D both use row-major indexing, GrainIds are indexed by global_id
-    h5_status = H5LTread_dataset_int(file_id,"/VoxelDataContainer/CELL_DATA/GrainIds",data);
+    h5_status = H5LTread_dataset_int(file_id, grain_ids_path.c_str(), data);
   }
 #endif
 
@@ -284,7 +307,7 @@ void ReadDream3d::read_average_quaternions() {
 #ifdef SPPARKS_HDF5
   if (me == 0) {
     hsize_t dims[2];
-    h5_status = H5LTget_dataset_info(file_id,"/VoxelDataContainer/FIELD_DATA/AvgQuats",
+    h5_status = H5LTget_dataset_info(file_id, quaternions_path.c_str(),
 				     dims,NULL,NULL);
     num_grains = dims[0];
     num_values = dims[1];
@@ -297,7 +320,7 @@ void ReadDream3d::read_average_quaternions() {
   
 #ifdef SPPARKS_HDF5
   if (me == 0) {
-    h5_status = H5LTread_dataset_float(file_id,"/VoxelDataContainer/FIELD_DATA/AvgQuats",data);
+    h5_status = H5LTread_dataset_float(file_id, quaternions_path.c_str(), data);
   }
 #endif
 

@@ -45,6 +45,11 @@ class ReadDream3d : protected Pointers {
   int narg,maxarg,compressed;
   char **arg;
 
+  char major_version;
+  std::string dimensions_path;
+  std::string grain_ids_path;
+  std::string quaternions_path;
+    
   char* input_file;
   bool load_orientations;
   int latticeflag;
@@ -55,6 +60,7 @@ class ReadDream3d : protected Pointers {
   int maxneigh;
   double boxxlo,boxxhi,boxylo,boxyhi,boxzlo,boxzhi;
 
+  void set_dataset_paths();
   void get_dimensions();
   void read_grain_ids();
   void read_average_eulers();
