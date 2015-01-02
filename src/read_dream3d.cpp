@@ -48,6 +48,11 @@ ReadDream3d::ReadDream3d(SPPARKS *spk) : Pointers(spk)
   narg = maxarg = 0;
   arg = NULL;
   load_orientations = false;
+  dataset_name = "SyntheticVolume";
+
+#ifdef SPPARKS_HDF5
+  H5::Exception::dontPrint();
+#endif
 }
 
 /* ---------------------------------------------------------------------- */
@@ -75,6 +80,10 @@ void ReadDream3d::command(int narg, char **arg)
     }
     else if (strcmp(arg[iarg],"load_ori") == 0) {
       load_orientations = true;
+    }
+    else if (strcmp(arg[iarg],"dataset") == 0) {
+      iarg++;
+      dataset_name = arg[iarg++];
     }
     else {
       error->all(FLERR,"Illegal read_dream3d command");
@@ -109,13 +118,19 @@ void ReadDream3d::command(int narg, char **arg)
     if (screen) fprintf(screen,"Reading dream3d file ...\n");
 #ifdef SPPARKS_HDF5
     // make sure the file exists first
-    file_id = H5Fopen(input_file, H5F_ACC_RDONLY, H5P_DEFAULT);
+    try {
+      H5::H5File file_id(input_file, H5F_ACC_RDONLY, H5P_DEFAULT);
+    }
+    catch (H5::FileIException e) {
+      std::string msg = "Could not open HDF5 file: " + std::string(input_file);
+      error->all(FLERR, msg.c_str());
+    }
     
     // get the DREAM3D file format version and broadcast it
     // lazy way to get the version string...
     char* file_version = new char[16];
     h5_status = H5LTget_attribute_string(file_id,"/", "FileVersion", file_version);
-    fprintf(stdout,"FileVersion == %s\n", file_version);
+
     major_version = file_version[0];
     if (!(major_version == '4' || major_version == '6'))
       error->all(FLERR,"Only DREAM3D data format versions 4 and 6 supported.");
@@ -176,9 +191,10 @@ void ReadDream3d::set_dataset_paths() {
     quaternions_path = "/VoxelDataContainer/FIELD_DATA/AvgQuats";
   }
   else if (major_version == '6') {
-    dimensions_path = "/DataContainers/SyntheticVolume/DIMENSIONS";
-    grain_ids_path = "/DataContainers/SyntheticVolume/CellData/FeatureIds";
-    quaternions_path = "/DataContainers/SyntheticVolume/CellFeatureData/AvgQuats";
+    std::string dataset_root = "/DataContainers/" + dataset_name + "/";
+    dimensions_path = dataset_root + "DIMENSIONS";
+    grain_ids_path = dataset_root + "CellData/FeatureIds";
+    quaternions_path = dataset_root + "CellFeatureData/AvgQuats";
   }
 }
 

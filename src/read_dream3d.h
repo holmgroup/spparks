@@ -22,7 +22,7 @@ CommandStyle(read_dream3d,ReadDream3d)
 #include "pointers.h"
 
 #ifdef SPPARKS_HDF5
-// #include "hdf5.h"
+#include "hdf5.h"
 #include "H5Cpp.h"
 #include "hdf5_hl.h"
 #endif
@@ -46,6 +46,7 @@ class ReadDream3d : protected Pointers {
   char **arg;
 
   char major_version;
+  std::string dataset_name;
   std::string dimensions_path;
   std::string grain_ids_path;
   std::string quaternions_path;
