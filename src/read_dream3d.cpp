@@ -118,20 +118,20 @@ void ReadDream3d::command(int narg, char **arg)
     if (screen) fprintf(screen,"Reading dream3d file ...\n");
 #ifdef SPPARKS_HDF5
     // make sure the file exists first
-    try {
-      H5::H5File file_id(input_file, H5F_ACC_RDONLY, H5P_DEFAULT);
-    }
-    catch (H5::FileIException e) {
+    fprintf(stdout,"input file: %s\n", input_file);
+    file_id = H5Fopen(input_file, H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
       std::string msg = "Could not open HDF5 file: " + std::string(input_file);
       error->all(FLERR, msg.c_str());
     }
-    
+
     // get the DREAM3D file format version and broadcast it
     // lazy way to get the version string...
     char* file_version = new char[16];
     h5_status = H5LTget_attribute_string(file_id,"/", "FileVersion", file_version);
 
     major_version = file_version[0];
+
     if (!(major_version == '4' || major_version == '6'))
       error->all(FLERR,"Only DREAM3D data format versions 4 and 6 supported.");
     MPI_Bcast(&major_version, 1, MPI_CHAR, 0, world);
