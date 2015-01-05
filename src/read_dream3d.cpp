@@ -343,5 +343,8 @@ void ReadDream3d::read_average_quaternions() {
   /* root proc broadcasts orientation data */
   MPI_Bcast(data, data_size, MPI_FLOAT, 0, world);
 
+  // update nspins!
+  app_potts_ori->update_nspins(num_grains);
+
   app_potts_ori->gb_props->copy_quaternion_data(data,num_grains);
 }

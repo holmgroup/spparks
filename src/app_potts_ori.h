@@ -32,7 +32,8 @@ class AppPottsOri : public AppPotts {
   void site_event_rejection(int, class RandomPark *);
   double site_propensity(int);
   void site_event(int, class RandomPark *);
-
+  void update_nspins(int);
+  
   class Crystallography *gb_props;
  private:
   

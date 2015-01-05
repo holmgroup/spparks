@@ -319,3 +319,13 @@ void AppPottsOri::site_event(int i, RandomPark *random)
 
   solve->update(nsites,sites,propensity);
 }
+
+void AppPottsOri::update_nspins(int num_grains) {
+  if (num_grains >= 1) {
+    nspins = num_grains;
+  }
+  if (me == 0) {
+    fprintf(stdout,"updating nspins: %d unique grains\n", num_grains);
+  }
+  return;
+}
