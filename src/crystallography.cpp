@@ -76,7 +76,7 @@ double Crystallography::read_shockley_energy(int i, int j) {
   
   misori = misori / e_theta_max;
   // do read/shockley formula
-  return misori * (1 - log(misori));
+  return std::max(misori * (1 - log(misori)), 0.4);
 }
 
 double Crystallography::hwang_humphreys_mobility(int i, int j) {
@@ -97,7 +97,7 @@ double Crystallography::hwang_humphreys_mobility(int i, int j) {
   // do the hwang/humphreys formula
   // HH_n and HH_d are the experimental parameters
   mobility = 1 - exp(-HH_n * pow(misori, HH_d));
-  return mobility;
+  return std::max(mobility, 0.001);
 }
 
 /* ---------------------------------------------------- */

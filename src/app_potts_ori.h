@@ -27,7 +27,6 @@ class AppPottsOri : public AppPotts {
   ~AppPottsOri();
   void input_app(char *, int, char **);
   void init_app();
-
   double site_energy(int);
   void site_event_rejection(int, class RandomPark *);
   double site_propensity(int);

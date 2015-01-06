@@ -153,6 +153,7 @@ void AppPottsOri::init_app()
   int flagall;
   MPI_Allreduce(&flag,&flagall,1,MPI_INT,MPI_SUM,world);
   if (flagall) error->all(FLERR,"One or more sites have invalid values");
+
 }
 
 /* ----------------------------------------------------------------------
@@ -179,28 +180,40 @@ double AppPottsOri::site_energy(int i)
    perform a site event with null bin rejection
    flip to random spin from 1 to nspins
 ------------------------------------------------------------------------- */
-
 void AppPottsOri::site_event_rejection(int i, RandomPark *random)
 {
- 
   int oldstate = spin[i];
   double einitial = site_energy(i);
 
-  // event = random spin from 1 to nspins, including self
+  // events = spin flips to neighboring site different than self
 
-  int iran = (int) (nspins*random->uniform()) + 1;
-  if (iran > nspins) iran = nspins;
-  spin[i] = iran;
+  int j,m,value;
+  int nevent = 0;
+  double gamma_min = 10000;
+  for (j = 0; j < numneigh[i]; j++) {
+    value = spin[neighbor[i][j]];
+    if (value == spin[i]) continue;
+    for (m = 0; m < nevent; m++)
+      if (value == unique[m]) break;
+    if (m < nevent) continue;
+    gamma_min = std::min(gamma_min, gb_props->energy(spin[i], value));
+    unique[nevent++] = value;
+  }
+
+  int iran = (int) (maxneigh*random->uniform());
+  if (iran >= nevent) return;
+  spin[i] = unique[iran];
   double efinal = site_energy(i);
-  double M = gb_props->mobility(spin[i], oldstate);
-  // accept or reject via Boltzmann criterion
-  // null bin extends to nspins
 
-  if (efinal <= einitial && random->uniform() < M) {
-    ;
+  double M = gb_props->mobility(spin[i], oldstate);
+  double gamma = gb_props->energy(spin[i], oldstate);
+
+  // accept or reject via Boltzmann criterion
+
+  if (efinal <= einitial && random->uniform() < M*gamma) {
   } else if (temperature == 0.0) {
     spin[i] = oldstate;
-  } else if (random->uniform() > M * exp((einitial-efinal)*t_inverse)) {
+  } else if (random->uniform() > M*gamma * exp(((einitial-efinal)/gamma_min)*t_inverse)) {
     spin[i] = oldstate;
   }
 
@@ -218,6 +231,7 @@ void AppPottsOri::site_event_rejection(int i, RandomPark *random)
   }
 }
 
+
 /* ----------------------------------------------------------------------
    KMC method
    compute total propensity of owned site summed over possible events
@@ -230,13 +244,16 @@ double AppPottsOri::site_propensity(int i)
 
   int j,m,value;
   int nevent = 0;
-
+  double gamma_min = 100000;
+  
   for (j = 0; j < numneigh[i]; j++) {
     value = spin[neighbor[i][j]];
     if (value == spin[i] || value > nspins) continue;
     for (m = 0; m < nevent; m++)
       if (value == unique[m]) break;
     if (m < nevent) continue;
+    gamma_min = std::min(gamma_min, gb_props->energy(spin[i], value));
+    gamma_min = std::max(0.01, gamma_min);
     unique[nevent++] = value;
   }
 
@@ -250,13 +267,15 @@ double AppPottsOri::site_propensity(int i)
   double efinal;
   double prob = 0.0;
   double M = 0.0;
-
+  double gamma = 0.0;
+  
   for (m = 0; m < nevent; m++) {
     spin[i] = unique[m];
     efinal = site_energy(i);
     M = gb_props->mobility(spin[i], oldstate);
-    if (efinal <= einitial) prob += M;
-    else if (temperature > 0.0) prob += M * exp((einitial-efinal)*t_inverse);
+    gamma = gb_props->energy(spin[i], oldstate);
+    if (efinal <= einitial) prob += M*gamma;
+    else if (temperature > 0.0) prob += M * gamma * exp(((einitial-efinal)/gamma_min) * t_inverse);
   }
 
   spin[i] = oldstate;
@@ -284,7 +303,22 @@ void AppPottsOri::site_event(int i, RandomPark *random)
   double prob = 0.0;
   int nevent = 0;
   double M = 0.0;
+  double gamma = 0.0;
+  double gamma_min = 10000;
 
+  // Find minimum pair-wise grain boundary energy to scale temperature by
+  for (j = 0; j < numneigh[i]; j++) {
+    value = spin[neighbor[i][j]];
+    if (value == spin[i] || value > nspins) continue;
+    for (m = 0; m < nevent; m++)
+      if (value == unique[m]) break;
+    if (m < nevent) continue;
+    gamma_min = std::min(gamma_min, gb_props->energy(spin[i], value));
+    gamma_min = std::max(0.01, gamma_min);
+    unique[nevent++] = value;
+  }
+  nevent = 0;
+    
   for (j = 0; j < numneigh[i]; j++) {
     value = spin[neighbor[i][j]];
     if (value == oldstate || value > nspins) continue;
@@ -296,8 +330,9 @@ void AppPottsOri::site_event(int i, RandomPark *random)
     spin[i] = value;
     efinal = site_energy(i);
     M = gb_props->mobility(spin[i], oldstate);
-    if (efinal <= einitial) prob += M;
-    else if (temperature > 0.0) prob += M * exp((einitial-efinal)*t_inverse);
+    gamma = gb_props->energy(spin[i], oldstate);
+    if (efinal <= einitial) prob += M*gamma;
+    else if (temperature > 0.0) prob += M * gamma * exp(((einitial-efinal)/gamma_min) * t_inverse);
     if (prob >= threshhold) break;
   }
 
@@ -329,3 +364,4 @@ void AppPottsOri::update_nspins(int num_grains) {
   }
   return;
 }
+
