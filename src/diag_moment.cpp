@@ -375,7 +375,8 @@ void DiagMoment::compute()
   if (me == 0) {
     if (fpdump) {
       fprintf(fpdump, "------------------------\n");
-      fprintf(fpdump, "%d grains\n", grains.size());
+      fprintf(fpdump, "time: %g\n", applattice->time);
+      fprintf(fpdump, "ngrains: %d\n", grains.size());
       fprintf(fpdump, "id volume Cent_x Cent_y Cent_z m_200 m_020 m_002 m_110 m_101 m_011 NumNeighs NeighList\n");
       for (grain_iter = grains.begin(); grain_iter != grains.end(); grain_iter++) {
 	Grain& grain = grain_iter->second;
