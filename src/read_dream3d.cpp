@@ -134,12 +134,12 @@ void ReadDream3d::command(int narg, char **arg)
 
     if (!(major_version == '4' || major_version == '6'))
       error->all(FLERR,"Only DREAM3D data format versions 4 and 6 supported.");
-    MPI_Bcast(&major_version, 1, MPI_CHAR, 0, world);
 #else
     error->all(FLERR,"Compile with HDF5 and set SPPARKS_HDF5 to read dream3d files.");
 #endif
   }
 
+  MPI_Bcast(&major_version, 1, MPI_CHAR, 0, world);
   set_dataset_paths();
   
   // extract dimensions of simulation volume
