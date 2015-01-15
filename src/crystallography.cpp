@@ -38,7 +38,7 @@ Crystallography::Crystallography() {
   n_symm = 0;
   e_theta_max = 15;
   m_theta_max = 15;
-
+  
   // load_symmetry_operator(); // needs error checking code...
   initialize_cubic_symmetry();
 }
@@ -97,7 +97,21 @@ double Crystallography::hwang_humphreys_mobility(int i, int j) {
   // do the hwang/humphreys formula
   // HH_n and HH_d are the experimental parameters
   mobility = 1 - exp(-HH_n * pow(misori, HH_d));
-  return std::max(mobility, 0.001);
+  return mobility;
+}
+
+double Crystallography::binary_mobility(int i, int j) {
+  double misori = 0;
+  double mobility = 1;
+  if (i == j)
+    return 0;
+
+  misori = misorientation(i,j);
+
+  if (misori < m_theta_max)
+    mobility = min_mobility;
+
+  return mobility;  
 }
 
 /* ---------------------------------------------------- */
@@ -138,6 +152,18 @@ void Crystallography::use_hwang_humphreys(double theta_max, double n, double d) 
     HH_d = d;
   
   this->mobility_pt = &Crystallography::hwang_humphreys_mobility;
+}
+
+void Crystallography::use_binary_mobility(double theta_max, double m_min) {
+  m_min = 0.001;
+  
+  if (theta_max > 0)
+    m_theta_max = theta_max;
+
+  if (min_mobility > 0)
+    min_mobility = m_min;
+
+  this->mobility_pt = &Crystallography::binary_mobility;
 }
 
 void Crystallography::setup_precomputed(char* style) {

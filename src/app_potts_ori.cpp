@@ -111,6 +111,29 @@ void AppPottsOri::input_app(char *command, int narg, char **arg)
       fprintf(stdout,"n = %f, ", n);
       fprintf(stdout,"d = %f\n", d);
     }
+    else if (strcmp(arg[0],"binary") == 0) {
+      double theta_max = 15;
+      double min_mobility = 0.001;
+      if (narg != 5)
+	error->all(FLERR,"Error setting binary mobility function");
+      int iarg = 1;
+      while (iarg < narg) {
+	if (strcmp(arg[iarg],"theta_max") == 0) {
+	  iarg++;
+	  theta_max = static_cast<double>(atof(arg[iarg++]));
+	}
+	else if (strcmp(arg[iarg],"min_mobility") == 0) {
+	  iarg++;
+	  min_mobility = static_cast<double>(atof(arg[iarg++]));
+	}
+	else error->all(FLERR,"Illegal binary mobility command");
+      }
+      gb_props->use_binary_mobility(theta_max, min_mobility);
+      fprintf(stdout,"using binary mobility function with ");
+      fprintf(stdout,"theta_max = %f, ", theta_max);
+      fprintf(stdout,"min_mobility = %f\n", min_mobility);
+      
+    }
     else error->all(FLERR, "Illegal mobility command");
   }
   else if (strcmp(command,"precompute") == 0) {

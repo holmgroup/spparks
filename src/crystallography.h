@@ -47,6 +47,7 @@ class Crystallography {
 
   double e_theta_max;
   double m_theta_max, HH_n, HH_d;
+  double min_mobility;
   
   Crystallography();
   ~Crystallography();
@@ -57,6 +58,7 @@ class Crystallography {
   void copy_quaternion_data(float*, int);
   void use_read_shockley(double);
   void use_hwang_humphreys(double,double,double);
+  void use_binary_mobility(double,double);
   void setup_precomputed(char*);
   void setup_cached(char*);
   
@@ -73,7 +75,8 @@ class Crystallography {
 
   double read_shockley_energy(int,int);
   double hwang_humphreys_mobility(int,int);
-
+  double binary_mobility(int,int);
+  
   double precomputed_misorientation_angle(int,int);
   double precomputed_energy(int,int);
   double precomputed_mobility(int,int);
