@@ -61,6 +61,9 @@ class Crystallography {
   void use_binary_mobility(double,double);
   void setup_precomputed(char*);
   void setup_cached(char*);
+  void print_symmetry();
+  void print_quaternions();
+  void test_misori();
   
  protected:
   double* misorientation_buf;

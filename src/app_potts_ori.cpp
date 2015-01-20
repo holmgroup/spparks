@@ -131,7 +131,7 @@ void AppPottsOri::input_app(char *command, int narg, char **arg)
       gb_props->use_binary_mobility(theta_max, min_mobility);
       fprintf(stdout,"using binary mobility function with ");
       fprintf(stdout,"theta_max = %f, ", theta_max);
-      fprintf(stdout,"min_mobility = %f\n", min_mobility);      
+      fprintf(stdout,"min_mobility = %f\n", min_mobility);
     }
     else error->all(FLERR, "Illegal mobility command");
   }

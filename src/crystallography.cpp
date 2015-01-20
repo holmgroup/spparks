@@ -33,7 +33,8 @@ Crystallography::Crystallography() {
   this->energy_pt = &Crystallography::unity;
   this->mobility_pt = &Crystallography::unity;
   this->misorientation_pt = &Crystallography::compute_misorientation_angle;
-   
+  this->misorientation_pt = &Crystallography::compute_cubic_misorientation_angle;
+
   /* default to cubic symmetry */
   n_symm = 0;
   e_theta_max = 15;
@@ -272,8 +273,9 @@ double Crystallography::compute_misorientation_angle(int i, int j) {
   // compute misorientation angle
   // axis is not necessarily in the FZ
   double wmin = 999999;
+  double w = 0;
   AxAng a;
-  Quat qmis, q, qmin;
+  Quat qmis, q, q_inner, qmin;
   
   QuatMapConst q_i(&quaternion_buf[4*i]);
   QuatMapConst q_j(&quaternion_buf[4*j]);
@@ -285,13 +287,28 @@ double Crystallography::compute_misorientation_angle(int i, int j) {
     QuatMapConst symm_i(&symmetry_buf[4*ii]);
     q = symm_i * qmis;
     q.normalize();
-    a = AxAng(q);
-    if (a.angle() > M_PI) {
-      a.angle() = 2*M_PI - a.angle();
-    }
-    if (a.angle() < wmin) {
-      qmin = q;
-      wmin = a.angle();
+    for (int jj = 0; jj < n_symm; jj++) {
+      QuatMapConst symm_j(&symmetry_buf[4*jj]);
+      q_inner = q * symm_j;
+      q_inner.normalize();
+      // a = AxAng(q_inner);
+      w = 2 * acos(q_inner.w());
+      if (w > M_PI)
+	w = 2*M_PI - w;
+      if (w < wmin) {
+	qmin = q_inner;
+	wmin = w;
+      }
+      q_inner.w() = -q_inner.w();
+      q_inner.normalize();
+      // a = AxAng(q_inner);
+      w = 2 * acos(q_inner.w());
+      if (w > M_PI)
+	w = 2*M_PI - w;
+      if (w < wmin) {
+	qmin = q_inner;
+	wmin = w;
+      }
     }
   }
 
@@ -299,12 +316,58 @@ double Crystallography::compute_misorientation_angle(int i, int j) {
 } 
 
 double Crystallography::compute_cubic_misorientation_angle(int i, int j) {
-  Quat misori;
-  double wmin = 999999;
+  // Cubic __angle-only__ misorientation shortcut from Sutton and Balluffi 1.3.3.4
+  // See Tony Rollett's texture slides
+  // http://neon.materials.cmu.edu/rollett/27750/L12-Grain_Bndries_RFspace-17Mar14.pdf slide 64
+
   QuatMapConst q_i(&quaternion_buf[4*i]);
   QuatMapConst q_j(&quaternion_buf[4*j]);
-  misori = q_i * q_j.conjugate();
-  return wmin;
+
+  Quat misori = q_i * q_j.inverse();
+  
+  std::vector<double> quat;
+  quat.push_back(fabs(misori.x()));
+  quat.push_back(fabs(misori.y()));
+  quat.push_back(fabs(misori.z()));
+  quat.push_back(fabs(misori.w()));
+  std::sort(quat.begin(), quat.end());
+  // Eigen quat initialization: w comes first
+  Quat q(quat[3], quat[0], quat[1], quat[2]);
+
+  // Quat qx(w, x, y, z)
+  Quat q1 = q;
+  Quat q2((q.z() + q.w())/sqrt(2),
+	  (q.x() - q.y())/sqrt(2),
+	  (q.x() + q.y())/sqrt(2),
+	  (q.z() - q.w())/sqrt(2));
+  Quat q3((q.x()+q.y()+q.z()+q.w())/2,
+	  (q.x()-q.y()+q.z()-q.w())/2,
+	  (q.x()+q.y()-q.z()-q.w())/2,
+	  (-q.x()+q.y()+q.z()-q.w())/2 );
+
+  double w[3] = {q1.w(), q2.w(), q3.w()};
+  double max_w = 0;
+  int index = 0;
+  for (int i = 0; i < 3; i++) {
+    if (w[i] > max_w) {
+      max_w = w[i];
+      index = i;
+    }
+  }
+
+  switch(index) {
+  case 0:
+    q = q1;
+    break;
+  case 1:
+    q = q2;
+    break;
+  case 2:
+    q = q3;
+    break;
+  }
+  AxAng a(q);
+  return a.angle() * static_cast<double>(180/M_PI);
 }
 /* -------------------------------------------------------- */
 
@@ -329,9 +392,9 @@ void Crystallography::copy_quaternion_data(float *data, int n_buf) {
   for (int i = 1; i <= n_orientations; i++) {
     for (int j = 0; j < 4; j++) {
       quaternion_buf[(4*i)+j] = static_cast<double>(data[(4*i)+j]);
-      QuatMap q(&quaternion_buf[4*i]);
-      q.normalize();
     }
+    QuatMap q(&quaternion_buf[4*i]);
+    q.normalize();
   }
 }
 
@@ -354,7 +417,7 @@ void Crystallography::load_symmetry_operator() {
     infile >> symmetry_buf[j+1]; // y
     infile >> symmetry_buf[j+2]; // z
     infile >> symmetry_buf[j+3]; // w
-    QuatMap q(&symmetry_buf[4*i]);
+    QuatMap q(&(symmetry_buf[4*i]));
     q.normalize();
   }
   for (int i = 0; i < n_symm; i++) {
@@ -382,7 +445,7 @@ void Crystallography::initialize_cubic_symmetry() {
   initialize_quat(&s[4*i++],  0,-sqrt(2),0,sqrt(2));
   initialize_quat(&s[4*i++],  0,0,-sqrt(2),sqrt(2));
   initialize_quat(&s[4*i++],  sqrt(2),sqrt(2),0,0);
-  initialize_quat(&s[4*i++], -sqrt(2),sqrt(2),0,1);
+  initialize_quat(&s[4*i++], -sqrt(2),sqrt(2),0,0);
   
   initialize_quat(&s[4*i++], 0,sqrt(2),sqrt(2),0);
   initialize_quat(&s[4*i++], 0,-sqrt(2),sqrt(2),0);
@@ -409,4 +472,33 @@ void Crystallography::initialize_quat(double *dbuf,
   q.z() = z;
   q.w() = w;
   q.normalize();
+}
+
+void Crystallography::print_symmetry() {
+  for (int i = 0; i < n_symm; i++) {
+    QuatMap q(&symmetry_buf[4*i]);
+    fprintf(stdout, "%d: %f %f %f %f\n", i, q.x(), q.y(), q.z(), q.w());
+  }
+}
+
+void Crystallography::print_quaternions() {
+  std::ofstream quatfile("quat_file.txt");
+  for (int i = 0; i < 4*(n_orientations+1); i++) {
+    quatfile << quaternion_buf[i] << std::endl;
+  }
+}
+
+void Crystallography::test_misori() {
+  fprintf(stdout,"test misorientations:\n");
+  
+  std::ifstream neighborfile("neighbor_file.txt");
+  std::ofstream misorifile("misori_file.txt");
+
+  int i, j = 0;
+
+  while(neighborfile >> i >> j) {
+    misorifile << misorientation(i,j) << std::endl;
+  }
+  fprintf(stdout,"done\n");
+  return;
 }
