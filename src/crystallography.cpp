@@ -155,7 +155,7 @@ void Crystallography::use_hwang_humphreys(double theta_max, double n, double d) 
 }
 
 void Crystallography::use_binary_mobility(double theta_max, double m_min) {
-  m_min = 0.001;
+  min_mobility = 0.001;
   
   if (theta_max > 0)
     m_theta_max = theta_max;
