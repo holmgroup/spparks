@@ -291,23 +291,16 @@ double Crystallography::compute_misorientation_angle(int i, int j) {
       QuatMapConst symm_j(&symmetry_buf[4*jj]);
       q_inner = q * symm_j;
       q_inner.normalize();
-      // a = AxAng(q_inner);
-      w = 2 * acos(q_inner.w());
-      if (w > M_PI)
-	w = 2*M_PI - w;
-      if (w < wmin) {
-	qmin = q_inner;
-	wmin = w;
-      }
-      q_inner.w() = -q_inner.w();
-      q_inner.normalize();
-      // a = AxAng(q_inner);
-      w = 2 * acos(q_inner.w());
-      if (w > M_PI)
-	w = 2*M_PI - w;
-      if (w < wmin) {
-	qmin = q_inner;
-	wmin = w;
+      for (int switch_symm = 0; switch_symm < 2; switch_symm++) {
+	// a = AxAng(q_inner);
+	w = 2 * acos(q_inner.w());
+	if (w > M_PI)
+	  w = 2*M_PI - w;
+	if (w < wmin) {
+	  qmin = q_inner;
+	  wmin = w;
+	}
+	q_inner.w() = -q_inner.w();
       }
     }
   }
