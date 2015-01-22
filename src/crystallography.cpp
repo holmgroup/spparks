@@ -275,24 +275,24 @@ double Crystallography::compute_misorientation_angle(int i, int j) {
   double wmin = 999999;
   double w = 0;
   AxAng a;
-  Quat qmis, q, q_inner, qmin;
+  Quat qmis, q_outer, q_inner, qmin;
   
-  QuatMapConst q_i(&quaternion_buf[4*i]);
-  QuatMapConst q_j(&quaternion_buf[4*j]);
-  
-  qmis = q_j * q_i.inverse();
+  QuatMapConst qa(&quaternion_buf[4*i]);
+  QuatMapConst qb(&quaternion_buf[4*j]);
+
+  /* Follow DREAM3D convention: quaternions as passive rotations */
+  qmis = qa.inverse() * qb;
   qmis.normalize();
   // loop over crystal symmetry operators for grain i
   for (int ii = 0; ii < n_symm; ii++) {
     QuatMapConst symm_i(&symmetry_buf[4*ii]);
-    q = symm_i * qmis;
-    q.normalize();
+    q_outer = symm_i * qmis;
+    q_outer.normalize();
     for (int jj = 0; jj < n_symm; jj++) {
       QuatMapConst symm_j(&symmetry_buf[4*jj]);
-      q_inner = q * symm_j;
+      q_inner = q_outer * symm_j;
       q_inner.normalize();
       for (int switch_symm = 0; switch_symm < 2; switch_symm++) {
-	// a = AxAng(q_inner);
 	w = 2 * acos(q_inner.w());
 	if (w > M_PI)
 	  w = 2*M_PI - w;
@@ -313,10 +313,11 @@ double Crystallography::compute_cubic_misorientation_angle(int i, int j) {
   // See Tony Rollett's texture slides
   // http://neon.materials.cmu.edu/rollett/27750/L12-Grain_Bndries_RFspace-17Mar14.pdf slide 64
 
-  QuatMapConst q_i(&quaternion_buf[4*i]);
-  QuatMapConst q_j(&quaternion_buf[4*j]);
+  QuatMapConst qa(&quaternion_buf[4*i]);
+  QuatMapConst qb(&quaternion_buf[4*j]);
 
-  Quat misori = q_i * q_j.inverse();
+  /* Follow DREAM3D convention: quaternions as passive rotations */
+  Quat misori = qa.inverse() * qb;
   
   std::vector<double> quat;
   quat.push_back(fabs(misori.x()));
@@ -324,6 +325,7 @@ double Crystallography::compute_cubic_misorientation_angle(int i, int j) {
   quat.push_back(fabs(misori.z()));
   quat.push_back(fabs(misori.w()));
   std::sort(quat.begin(), quat.end());
+
   // Eigen quat initialization: w comes first
   Quat q(quat[3], quat[0], quat[1], quat[2]);
 
