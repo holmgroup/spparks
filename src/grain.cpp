@@ -29,9 +29,11 @@ Grain::Grain(int id, double vol, int nn, int* neighs) {
     neighlist = NULL;
   } else {
     neighlist = (int*) malloc(nneigh*sizeof(int));
+    arealist = NULL;
     for (int i = 0; i < nneigh; i++) {
       neighlist[i] = static_cast<int> (neighs[i]);
     }
+    arealist = NULL;
   }
 }
 
@@ -45,6 +47,7 @@ Grain::Grain(int grain_id, Point3D ref) {
     second_moment[i] = 0;
   nneigh = 0;
   neighlist = NULL;
+  arealist = NULL;
 }
 
 /* Copy constructor */
@@ -59,11 +62,13 @@ Grain::Grain(const Grain& g) {
   nneigh = g.nneigh;
   if (nneigh == 0) {
     neighlist = NULL;
+    arealist = NULL;
   } else {
     neighlist = (int*) malloc(nneigh*sizeof(int));
     for (int i = 0; i < nneigh; i++) {
       neighlist[i] = g.neighlist[i];
     }
+    arealist = NULL;
   }
 }
 
@@ -81,22 +86,28 @@ Grain& Grain::operator=(const Grain& g) {
   nneigh = g.nneigh;
   if (nneigh == 0) {
     neighlist = NULL;
+    arealist = NULL;
   } else {
     neighlist = (int*) malloc(nneigh*sizeof(int));
     for (int i = 0; i < nneigh; i++) {
       neighlist[i] = g.neighlist[i];
     }
+    arealist = NULL;
   }
   return *this;
 }
   
 Grain::~Grain() {
   if (neighlist != NULL) free(neighlist);
+  if (arealist != NULL) free(arealist);
 }
   
 void Grain::add_neigh(int id) {
+  
   for (int ineigh = 0; ineigh < nneigh; ineigh++) {
-    if (id == neighlist[ineigh]) return;
+    if (id == neighlist[ineigh]) {
+      return;
+    }
   }
   nneigh++;
   neighlist = (int*) realloc(neighlist,nneigh*sizeof(int));

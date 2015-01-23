@@ -33,7 +33,7 @@ Crystallography::Crystallography() {
   this->energy_pt = &Crystallography::unity;
   this->mobility_pt = &Crystallography::unity;
   this->misorientation_pt = &Crystallography::compute_misorientation_angle;
-  this->misorientation_pt = &Crystallography::compute_cubic_misorientation_angle;
+  // this->misorientation_pt = &Crystallography::compute_cubic_misorientation_angle;
 
   /* default to cubic symmetry */
   n_symm = 0;

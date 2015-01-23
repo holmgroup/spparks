@@ -145,8 +145,12 @@ void DiagMoment::compute()
 
     // check neighboring site ids for grain boundaries
     int j_id = 0;
-    for (int j = 0; j < numneigh[i]; j++) {
-      j_id = site[neighbor[i][j]];
+    // nearest neighbors in _periodic_ SC_26N lattice
+    const int n_nearest = 6;
+    int nearest_neighs[n_nearest] = {4, 10, 12, 13, 15, 21};
+    for (int j = 0; j < n_nearest; j++) {
+      // nearest neighbors in _periodic_ SC_26N lattice
+      j_id = site[neighbor[i][nearest_neighs[j]]];
       if (grain_id != j_id) 
 	grain.add_neigh(j_id);
     }

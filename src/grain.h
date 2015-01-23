@@ -28,6 +28,7 @@ class Grain {
   Point3D centroid;
   int nneigh;
   int* neighlist;
+  int* arealist;
   double second_moment[NUM_MOMENTS];
 
   Grain(int, double, int, int*);
