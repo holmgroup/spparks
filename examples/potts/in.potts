@@ -2,30 +2,32 @@
 
 seed		 56789
 
-app_style	 potts 100
+variable    	 systemsize equal 256
+variable	 volume equal ${systemsize}*${systemsize}*${systemsize}
 
+app_style	 potts ${volume}
 dimension	 3
 lattice		 sc/26n 1.0
-region		 box block 0 20 0 20 0 20
+region		 box block 0 ${systemsize} 0 ${systemsize} 0 ${systemsize}
 create_box	 box
 create_sites	 box
-set		 site range 1 100
+set		 site unique
 
-sweep		 random
-#sweep		 raster mask yes
-#solve_style      tree
-sector		 yes
+solve_style      tree
+sector		  no
 
 #solve_style      tree
 #solve_style      group 26 1
 #sector		 yes
 
-diag_style       energy
+diag_style       cluster
 
-temperature	 0.0
+temperature	 1.8
 
-stats            10.0
-dump             1 text 10.0 dump*.potts
-diag_style       cluster delt 1.0 stats no logfreq 9 10.0 filename cluster.dat
+stats            25.0
+# diag_style       cluster delt 1.0 stats no logfreq 9 10.0 filename cluster.dat
+run 		 100.0
 
-run              100.0
+# dump             1 text 10.0 dump*.potts
+diag_style	 moment filename grains.dat
+run              250.0

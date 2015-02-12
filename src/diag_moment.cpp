@@ -18,6 +18,7 @@
 #include "app.h"
 #include "app_lattice.h"
 #include "domain.h"
+#include "lattice.h"
 #include "comm_lattice.h"
 #include "comm_off_lattice.h"
 #include "error.h"
@@ -25,6 +26,10 @@
 #include "math.h"
 
 using namespace SPPARKS_NS;
+
+/* lattice styles enum */
+enum{NONE,LINE_2N,SQ_4N,SQ_8N,TRI,SC_6N,SC_26N,FCC,BCC,DIAMOND,
+       FCC_OCTA_TETRA,RANDOM_1D,RANDOM_2D,RANDOM_3D};
 
 /* ---------------------------------------------------------------------- */
 
@@ -88,6 +93,23 @@ void DiagMoment::init()
   else
     z_dist = &DiagMoment::dist;
 
+  /* set up nearest neighbor lists for periodic lattices */
+  n_nearest = 0;
+  nearest_neighs = NULL;
+
+  /* this initialization syntax only works in C++11 */
+  if (domain->lattice->style == SC_26N) {
+    // nearest neighbors in _periodic_ SC_26N lattice
+    n_nearest = 6;
+    nearest_neighs = new int[n_nearest] {4, 10, 12, 13, 15, 21};
+  }
+  else if (domain->lattice->style == SQ_8N) {
+    // nearest neighbors in _periodic_ SQ_8N lattice
+    n_nearest = 4;
+    nearest_neighs = new int[n_nearest] {1, 3, 4, 6};
+  }
+  else
+    error->all(FLERR,"diag_moment not implemented for this lattice.");
 }
 
 /* ---------------------------------------------------------------------- */
@@ -144,10 +166,8 @@ void DiagMoment::compute()
     grain.volume += 1;
 
     // check neighboring site ids for grain boundaries
-    int j_id = 0;
-    // nearest neighbors in _periodic_ SC_26N lattice
-    const int n_nearest = 6;
-    int nearest_neighs[n_nearest] = {4, 10, 12, 13, 15, 21};
+    // look at nearest neighbor sites, specific to lattice style
+    int j_id = 0;    
     for (int j = 0; j < n_nearest; j++) {
       // nearest neighbors in _periodic_ SC_26N lattice
       j_id = site[neighbor[i][nearest_neighs[j]]];
