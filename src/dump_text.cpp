@@ -69,7 +69,7 @@ DumpText::DumpText(SPPARKS *spk, int narg, char **arg) : Dump(spk, narg, arg)
 
   ioptional = parse_fields(narg,argcopy);
 
-  if (ioptional < narg && strcmp(style,"image") != 0)
+  if (ioptional < narg && (strcmp(style,"image") != 0 && strcmp(style,"dream3d") != 0))
     error->all(FLERR,"Invalid attribute in dump text command");
   size_one = ioptional - 4;
 
