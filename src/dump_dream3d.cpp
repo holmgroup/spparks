@@ -17,7 +17,6 @@
 #include "stdlib.h"
 #include "string.h"
 #include "dump_dream3d.h"
-#include "image.h"
 #include "app.h"
 #include "app_lattice.h"
 #include "domain.h"
@@ -35,6 +34,7 @@ using namespace MathConst;
 
 enum{DREAM3D,PLAIN_H5};
 enum{PARALLEL,SERIAL};
+enum{DREAM3D4,DREAM3D6}; // DREAM3D file format major versions
 enum{ID,SITE,X,Y,Z,ENERGY,PROPENSITY,IARRAY,DARRAY};  // also in dump_text
 enum{INT,DOUBLE,BIGINT};                              // also in dump_text
 
@@ -47,6 +47,9 @@ enum{JPG,PPM};
 DumpDream3d::DumpDream3d(SPPARKS *spk, int narg, char **arg) :
   DumpText(spk, narg, arg)
 {
+  MPI_Comm_rank(world,&me);
+  MPI_Comm_size(world,&nprocs);
+
   if (binary || multiproc) error->all(FLERR,"Invalid dump dream3d filename");
 
   // set filetype based on filename suffix
@@ -62,25 +65,54 @@ DumpDream3d::DumpDream3d(SPPARKS *spk, int narg, char **arg) :
   error->all(FLERR,"Cannot dump dream3d file without HDF5 support");
 #endif
 
-  // if (size_one != 2) error->all(FLERR,"Illegal dump dream3d command");
+  int def = 0;
+  char **argcopy;
+  
+  if (narg == 4) {
+    def = 1;
+    narg = 9;
+    argcopy = new char*[narg];
+    argcopy[4] = (char *) "id";
+    argcopy[5] = new char[6];
+    strcpy(argcopy[5],"site");
+    argcopy[6] = (char *) "x";
+    argcopy[7] = (char *) "y";
+    argcopy[8] = (char *) "z";
+  } else argcopy = arg;
+  
+  size_one = 2;
+  pack_choice = new FnPtrPack[size_one];
+  ioptional = parse_fields(narg,argcopy);
+  if (size_one != 2) error->all(FLERR,"Illegal dump dream3d command");
 
   // set defaults for optional args
-  write_style = SERIAL;
+  io_style = SERIAL;
+  major_version = DREAM3D6;
+  dataset_name = "SpparksVolume";
 
   // parse optional args
 
   int iarg = ioptional;
   while (iarg < narg) {
-    if (strcmp(arg[iarg],"write_style") == 1) {
+    if (strcmp(arg[iarg],"io_style") == 1) {
       if (iarg+1 > narg) error->all(FLERR,"Illegal dump dream3d command");
-      if (strcmp(arg[iarg+1],"parallel") == 0) write_style = PARALLEL;
-      else if (strcmp(arg[iarg+1],"serial") == 0) write_style = SERIAL;
+      if (strcmp(arg[iarg+1],"parallel") == 0) io_style = PARALLEL;
+      else if (strcmp(arg[iarg+1],"serial") == 0) io_style = SERIAL;
       iarg += 2;
-    } else error->all(FLERR,"Illegal dump image command");
+    }
+    else if (strcmp(arg[iarg],"version") == 0) {
+      if (iarg+1 > narg) error->all(FLERR,"Illegal dump dream3d command: missing version arg");
+      if (strcmp(arg[iarg+1],"4.0") == 0) major_version = DREAM3D4;
+      else if (strcmp(arg[iarg+1],"6.0") == 0) major_version = DREAM3D6;
+      else error->all(FLERR,"only DREAM3D formats 4.0 and 6.0 supported");
+      iarg += 2;
+    }
+    else error->all(FLERR,"Illegal dump dream3d command");
   }
 
-  // error checks
+  set_dataset_paths();
 
+  // error checks
   if (app->appclass != App::LATTICE)
     error->all(FLERR,"Dump dream3d requires lattice app");
   applattice = (AppLattice *) app;
@@ -98,10 +130,10 @@ DumpDream3d::~DumpDream3d()
 
 void DumpDream3d::init_style()
 {
-  if (multifile == 0) error->all(FLERR,"Dump dream3d requires one snapshot per file");
+  if (multifile == 0) error->all(FLERR,"Dump dream3d requires one snapshot per file until the DREAM3D format supports timeseries data");
 
   // keep this here for consistency, though it's probably superfluous to DumpDream3d
-  DumpText::init_style();
+  // DumpText::init_style();
 
   // check variables
   // no variables for DumpDream3d right now...
@@ -109,43 +141,57 @@ void DumpDream3d::init_style()
 
 /* ---------------------------------------------------------------------- */
 
+void DumpDream3d::set_dataset_paths() {
+  switch (major_version){
+  case DREAM3D4 :
+    version_string = "4.0";
+    dataset_root = "/VoxelDataContainer";
+    voxels_path = dataset_root + "/" + "CELL_DATA";
+    grain_ids_path = voxels_path + "/" + "GrainIds";
+    break;
+  case DREAM3D6 :
+    version_string = "6.0";
+    dataset_root = "/DataContainers/" + dataset_name;
+    voxels_path = dataset_root + "/" + "CellData";
+    grain_ids_path = voxels_path + "/" + "FeatureIds";
+    break;
+  default:
+    error->all(FLERR,"Only DREAM3D format versions 4 and 6 supported");
+  }
+}
+
+void DumpDream3d::create_groups() {
+#ifdef SPPARKS_HDF5
+  if (major_version == DREAM3D6) {
+    h5_status = H5Gcreate(output_file, "/DataContainers",
+			  H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  }
+  
+  h5_status = H5Gcreate(output_file, dataset_root.c_str(),
+			H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  h5_status = H5Gcreate(output_file, voxels_path.c_str(),
+			H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+#endif
+}
+
 void DumpDream3d::write(double time) {
   // open new file
   create_hdf5_file();
   idump++;
 
-  // nme = # of atoms this proc will contribute to dump
-  // pack buf with x,y,z,color,diameter
-  // set minmax color range if using color map
-  // create my portion of image for my particles
-  
-  int nme = count();
-
-  if (nme > maxbuf) {
-    maxbuf = nme;
-    memory->destroy(buf);
-    memory->create(buf,maxbuf*size_one,"dump:buf");
-  }
-
-  pack();
-  // if (scolor == DATTRIBUTE) image->color_minmax(nchoose,buf,size_one);
-
-  // create image on each proc, then merge them
-
-  // image->clear();
-  // create_image();
-  // image->merge();
-
   // write data to hdf5 file
-
-  if (me == 0) {
-    if (filetype == PLAIN_H5) write_h5();
-    else write_dream3d();
-#ifdef SPPARKS_HDF5
-    h5_status = H5Fclose(output_file);
-#endif
+  switch (filetype) {
+  case PLAIN_H5:
+    write_h5();
+    break;
+  case DREAM3D:
+    write_dream3d();
+    break;
+  default:
+    write_dream3d();
   }
 
+  close_hdf5_file();
 }
 
 /* Evil code replication, mostly to keep HDF5 code out of dump.h */
@@ -171,12 +217,47 @@ void DumpDream3d::create_hdf5_file() {
   }
 
   if (me == 0) {
-    std::cout << filecurrent << std::endl;
+    std::cout << "dump_dream3d filename: " << filecurrent << std::endl;
 #ifdef SPPARKS_HDF5
     output_file = H5Fcreate(filecurrent, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    H5LTset_attribute_string(output_file, "/", "FileVersion", "4.0");
+    H5LTset_attribute_string(output_file, "/", "FileVersion", version_string.c_str());
     H5LTset_attribute_string(output_file, "/", "FileOrigin", "SPPARKS with HDF5");
+    create_groups();
 #endif
+  }
+}
+
+void DumpDream3d::close_hdf5_file() {
+  if (me == 0) {
+#ifdef SPPARKS_HDF5
+    h5_status = H5Fclose(output_file);
+#endif
+  }
+}
+
+// void write_data(n, double* buf) {
+//   int i,j;
+
+//   int m = 0;
+//   for (i = 0; i < n; i++) {
+//     for (j = 0; j < size_one; j++) {
+//       if (vtype[j] == INT)
+// 	fprintf(fp,vformat[j],static_cast<int> (buf[m]));
+//       else if (vtype[j] == DOUBLE)
+// 	fprintf(fp,vformat[j],buf[m]);
+//       else if (vtype[j] == TAGINT) 
+// 	fprintf(fp,vformat[j],static_cast<tagint> (buf[m]));
+//       m++;
+//     }
+//   }
+// }
+
+void unpack_data(int* data, int nlines, double* buf) {
+  int m = 0;
+  for (int i = 0; i < nlines; i++) {
+    int id = static_cast<int>(buf[m]) - 1; // site ids offset by one
+    data[id] = static_cast<int>(buf[m+1]);
+    m += 2;
   }
 }
 
@@ -184,21 +265,73 @@ void DumpDream3d::write_dream3d() {
 #ifdef SPPARKS_HDF5
   // Specify the dataset dimensions
   hsize_t dims[1] = {3};
-  long extents[3] = {domain->boxxhi - domain->boxxlo,
-		    domain->boxyhi - domain->boxylo,
-		    domain->boxzhi - domain->boxzlo};
-  h5_status = H5Gcreate(output_file, "/VoxelDataContainer", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  h5_status = H5LTmake_dataset_long(output_file, "/VoxelDataContainer/DIMENSIONS", 1, dims, extents);
- 
+  long extents[3] = {static_cast<long>(domain->boxxhi - domain->boxxlo),
+		     static_cast<long>(domain->boxyhi - domain->boxylo),
+		     static_cast<long>(domain->boxzhi - domain->boxzlo)};
+
+  std::string dimensions_path = voxels_path + "/" + "DIMENSIONS";
+  h5_status =  H5LTmake_dataset_long(output_file, dimensions_path.c_str(), 1, dims, extents);
+  
   // Specify the origin
   float origin[3] = {0,0,0};
-  h5_status = H5LTmake_dataset_float(output_file, "/VoxelDataContainer/ORIGIN", 1, dims, origin);
+  std::string origin_path = voxels_path + "/" + "ORIGIN";
+  h5_status = H5LTmake_dataset_float(output_file, origin_path.c_str(), 1, dims, origin);
 
   // Specify spacing in microns (Analagous to DREAM.3D)
   // default to 0.5 micron spacing, as in DREAM.3D
   float spacing[3] = {0.5, 0.5, 0.5};
-  h5_status = H5LTmake_dataset_float(output_file, "/VoxelDataContainer/SPACING", 1, dims, spacing);
+  std::string spacing_path = voxels_path + "/" + "SPACING";
+  h5_status = H5LTmake_dataset_float(output_file, spacing_path.c_str(), 1, dims, spacing);
 
+  // write grain ids
+  int* data = NULL;
+  if (me == 0) {
+    data = new int[app->nglobal];
+    for (int i = 0; i < app->nglobal; i++)
+      data[i] = 0;
+  }
+      // nme = # of atoms this proc will contribute to dump
+  // pack buf with id, site
+  
+  int nme = count();
+
+  if (nme > maxbuf) {
+    maxbuf = nme;
+    memory->destroy(buf);
+    memory->create(buf,maxbuf*size_one,"dump:buf");
+  }
+
+  pack();
+
+  // copy data
+  int tmp,nlines;
+  MPI_Status status;
+  MPI_Request request;
+  
+  if (me == 0) {
+    for (int iproc = 0; iproc < nprocs; iproc++) {
+      if (iproc) {
+	MPI_Irecv(buf,maxbuf,MPI_DOUBLE,iproc,0,world,&request);
+	MPI_Send(&tmp,0,MPI_INT,iproc,0,world);
+	MPI_Wait(&request,&status);
+	MPI_Get_count(&status,MPI_DOUBLE,&nlines);
+	nlines /= size_one;
+      } else nlines = nme;
+
+      unpack_data(data,nlines,buf);
+    }
+    
+  } else {
+    MPI_Recv(&tmp,0,MPI_INT,0,0,world,&status);
+    MPI_Rsend(buf,nme*size_one,MPI_DOUBLE,0,0,world);
+  }
+  
+    // assuming SPPARKS and DREAM3D both use row-major indexing, GrainIds are indexed by global_id
+  if (me == 0) {
+    int rank = 3;
+    hsize_t shape[rank] = {extents[0], extents[1], extents[2]};
+    h5_status = H5LTmake_dataset_int(output_file, grain_ids_path.c_str(), rank, shape, data);
+  }
 #endif
 }
 

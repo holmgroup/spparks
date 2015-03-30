@@ -21,6 +21,7 @@ DumpStyle(dream3d,DumpDream3d)
 #define SPK_DUMP_DREAM3D_H
 
 #include "math.h"
+#include <string>
 #include "dump_text.h"
 
 #ifdef SPPARKS_HDF5
@@ -34,10 +35,20 @@ class DumpDream3d : public DumpText{
  public:
   DumpDream3d(class SPPARKS *, int, char**);
   ~DumpDream3d();
-
+  
  private:
+  int me,nprocs;
+  
   int filetype;
-  int write_style;
+  std::string version_string;
+  std::string dataset_name;
+  std::string dataset_root;
+  std::string voxels_path;
+  std::string grain_ids_path;
+  
+  int io_style;
+  int major_version;
+  
 #ifdef SPPARKS_HDF5
   hid_t output_file;
   herr_t h5_status;
@@ -47,8 +58,11 @@ class DumpDream3d : public DumpText{
 
   void init_style();
   int modify_param(int, char **);
+  void set_dataset_paths();
+  void create_groups();
   void write(double);
   void create_hdf5_file();
+  void close_hdf5_file();
   void write_dream3d();
   void write_h5();
 
