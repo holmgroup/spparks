@@ -16,6 +16,11 @@
 import sys,traceback,types
 from ctypes import *
 
+def cstring(string):
+  ''' convert python string to a form ctypes 
+      can pass to a const char * argument '''
+  return c_char_p(bytes(string, 'utf8'))
+
 class spparks:
   def __init__(self,name="",cmdargs=None):
 
@@ -28,7 +33,7 @@ class spparks:
     except:
       type,value,tb = sys.exc_info()
       traceback.print_exception(type,value,tb)
-      raise OSError,"Could not load SPPARKS dynamic library"
+      raise OSError("Could not load SPPARKS dynamic library")
 
     # create an instance of SPPARKS
     # don't know how to pass an MPI communicator from PyPar
@@ -38,6 +43,7 @@ class spparks:
     if cmdargs:
       cmdargs.insert(0,"spparks.py")
       narg = len(cmdargs)
+      cmdargs = [bytes(arg, 'utf8') for arg in cmdargs]
       cargs = (c_char_p*narg)(*cmdargs)
       self.spk = c_void_p()
       self.lib.spparks_open_no_mpi(narg,cargs,byref(self.spk))
@@ -54,13 +60,14 @@ class spparks:
     self.lib.spparks_close(self.spk)
     self.spk = None
 
-  def file(self,file):
-    self.lib.spparks_file(self.spk,file)
+  def file(self,f):
+    self.lib.spparks_file(self.spk,cstring(f))
 
   def command(self,cmd):
-    self.lib.spparks_command(self.spk,cmd)
-
+    self.lib.spparks_command(self.spk,cstring(cmd))
+      
   def extract(self,name,type):
+    name = cstring(name)
     if type == 0:
       self.lib.spparks_extract.restype = POINTER(c_int)
       ptr = self.lib.spparks_extract(self.spk,name)

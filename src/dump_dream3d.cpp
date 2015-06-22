@@ -107,6 +107,11 @@ DumpDream3d::DumpDream3d(SPPARKS *spk, int narg, char **arg) :
       else error->all(FLERR,"only DREAM3D formats 4.0 and 6.0 supported");
       iarg += 2;
     }
+    else if (strcmp(arg[iarg],"dataset") == 0) {
+      if (iarg+1 > narg) error->all(FLERR,"Illegal dump dream3d command: missing version arg");
+      dataset_name = arg[iarg+1];
+      iarg += 2;
+    }
     else error->all(FLERR,"Illegal dump dream3d command");
   }
 
@@ -174,6 +179,42 @@ void DumpDream3d::create_groups() {
 #endif
 }
 
+void DumpDream3d::set_attrs() {
+#ifdef SPPARKS_HDF5
+  // a hacked together way to set attributes DREAM3D needs
+  long container_type[1] = {0};
+  h5_status = H5LTset_attribute_long(output_file, dataset_root.c_str(),
+				     "DataContainerType", container_type, 1);
+  long matrix_type[1] = {3};
+  h5_status = H5LTset_attribute_long(output_file, voxels_path.c_str(),
+				     "AttributeMatrixType", matrix_type, 1);
+  long dims[3] = {0,0,0};
+  std::string dimensions_path = dataset_root + "/" + "DIMENSIONS";
+  h5_status = H5LTread_dataset_long(output_file, dimensions_path.c_str(), dims);
+  h5_status = H5LTset_attribute_long(output_file, voxels_path.c_str(),
+				     "TupleDimensions", dims, 3);
+
+  int data_version[1] = {2};
+  h5_status = H5LTset_attribute_int(output_file, grain_ids_path.c_str(),
+				     "DataArrayVersion", data_version, 1);
+  std::string object_type = "DataArray<int32_t>";
+  h5_status = H5LTset_attribute_string(output_file, grain_ids_path.c_str(),
+				    "ObjectType", object_type.c_str());
+  int num_cpts[1] = {1};
+  h5_status = H5LTset_attribute_int(output_file, grain_ids_path.c_str(),
+				    "NumComponents", num_cpts, 1);
+  h5_status = H5LTset_attribute_long(output_file, grain_ids_path.c_str(),
+				     "TupleDimensions", dims, 3);
+  long cpt_dims[1] = {1};
+  h5_status = H5LTset_attribute_long(output_file, grain_ids_path.c_str(),
+				    "ComponentDimensions", cpt_dims, 1);
+  char sbuf[100];
+  sprintf(sbuf, "%s%d%s%d%s%d", "x=", dims[0], ",y=", dims[1], ",z=", dims[2]);
+  h5_status = H5LTset_attribute_string(output_file, grain_ids_path.c_str(),
+				    "Tuple Axis Dimensions", sbuf);
+#endif
+}
+
 void DumpDream3d::write(double time) {
   // open new file
   create_hdf5_file();
@@ -222,6 +263,8 @@ void DumpDream3d::create_hdf5_file() {
     output_file = H5Fcreate(filecurrent, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     H5LTset_attribute_string(output_file, "/", "FileVersion", version_string.c_str());
     H5LTset_attribute_string(output_file, "/", "FileOrigin", "SPPARKS with HDF5");
+    std::string dream3d_build = "5.1.709.e69fafd";
+    H5LTset_attribute_string(output_file, "/", "DREAM3D Version", dream3d_build.c_str());
     create_groups();
 #endif
   }
@@ -269,18 +312,18 @@ void DumpDream3d::write_dream3d() {
 		     static_cast<long>(domain->boxyhi - domain->boxylo),
 		     static_cast<long>(domain->boxzhi - domain->boxzlo)};
 
-  std::string dimensions_path = voxels_path + "/" + "DIMENSIONS";
+  std::string dimensions_path = dataset_root + "/" + "DIMENSIONS";
   h5_status =  H5LTmake_dataset_long(output_file, dimensions_path.c_str(), 1, dims, extents);
   
   // Specify the origin
   float origin[3] = {0,0,0};
-  std::string origin_path = voxels_path + "/" + "ORIGIN";
+  std::string origin_path = dataset_root + "/" + "ORIGIN";
   h5_status = H5LTmake_dataset_float(output_file, origin_path.c_str(), 1, dims, origin);
 
   // Specify spacing in microns (Analagous to DREAM.3D)
   // default to 0.5 micron spacing, as in DREAM.3D
   float spacing[3] = {0.5, 0.5, 0.5};
-  std::string spacing_path = voxels_path + "/" + "SPACING";
+  std::string spacing_path = dataset_root + "/" + "SPACING";
   h5_status = H5LTmake_dataset_float(output_file, spacing_path.c_str(), 1, dims, spacing);
 
   // write grain ids
@@ -328,11 +371,12 @@ void DumpDream3d::write_dream3d() {
   
     // assuming SPPARKS and DREAM3D both use row-major indexing, GrainIds are indexed by global_id
   if (me == 0) {
-    int rank = 3;
-    hsize_t shape[rank] = {extents[0], extents[1], extents[2]};
+    const int rank = 4;
+    hsize_t shape[rank] = {extents[0], extents[1], extents[2], 1};
     h5_status = H5LTmake_dataset_int(output_file, grain_ids_path.c_str(), rank, shape, data);
   }
 #endif
+  set_attrs();
 }
 
 void DumpDream3d::write_h5() {

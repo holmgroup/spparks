@@ -12,7 +12,7 @@ import sys
 
 argv = sys.argv
 if len(argv) != 1:
-  print "Syntax: demo.py"
+  print("Syntax: demo.py")
   sys.exit()
 
 me = 0
@@ -26,22 +26,22 @@ spk = spparks()
 
 # test out various library functions after running in.demo
 
-spk.file("in.ising")
+spk.file('in.ising')
 
-if me == 0: print "\nPython output:"
+if me == 0: print("\nPython output:")
 
 nglobal = spk.extract("nglobal",0)
 nlocal = spk.extract("nlocal",0)
-print "Nglobal, nlocal =",nglobal,nlocal
+print("Nglobal, nlocal = {}, {}".format(nglobal,nlocal))
 
 xyz = spk.extract("xyz",5)
-print "Y coord of 100th lattice site =",xyz[99][1]
+print("Y coord of 100th lattice site = {}".format(xyz[99][1]))
 
 eng = spk.energy()
-print "Energy of system =",eng
+print("Energy of system = {}".format(eng))
 
 site = spk.extract("site",1)
-print "Site values for 1,10,100 =",site[0],site[9],site[99]
+print("Site values for 1,10,100 = {}, {}, {}".format(site[0],site[9],site[99]))
 
 # uncomment if running in parallel via Pypar
 #print "Proc %d out of %d procs has" % (me,nprocs), spk

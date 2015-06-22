@@ -60,6 +60,7 @@ class DumpDream3d : public DumpText{
   int modify_param(int, char **);
   void set_dataset_paths();
   void create_groups();
+  void set_attrs();
   void write(double);
   void create_hdf5_file();
   void close_hdf5_file();
