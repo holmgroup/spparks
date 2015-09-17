@@ -50,7 +50,7 @@ JPG_LIB =	-ljpeg
 
 HDF_INC =   # /usr/include/hdf5_hl.h
 HDF_PATH =  /usr/lib/libhdf5_hl.so /usr/lib/libhdf5_cpp.so
-HDF_LIB =   -lhdf5
+HDF_LIB =   -lhdf5 -lhdf5_hl -lhdf5_cpp
 
 # ---------------------------------------------------------------------
 # build rules and dependencies

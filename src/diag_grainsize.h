@@ -12,30 +12,35 @@
 ------------------------------------------------------------------------- */
 
 #ifdef DIAG_CLASS
-DiagStyle(moment,DiagMoment)
+DiagStyle(grainsize,DiagGrainsize)
 #else
 
-#ifndef SPK_DIAG_MOMENT_H
-#define SPK_DIAG_MOMENT_H
+#ifndef SPK_DIAG_GRAINSIZE_H
+#define SPK_DIAG_GRAINSIZE_H
 
 #include "stdio.h"
 #include "diag.h"
 #include <map>
 #include "grain.h"
 
+#ifdef SPPARKS_HDF5
+#include "H5Cpp.h"
+#include "hdf5_hl.h"
+#endif
+
 namespace SPPARKS_NS {
 
-class DiagMoment : public Diag {
+class DiagGrainsize : public Diag {
  public:
-  DiagMoment(class SPPARKS *, int, char **);
-  virtual ~DiagMoment();
+  DiagGrainsize(class SPPARKS *, int, char **);
+  virtual ~DiagGrainsize();
   void init();
   void compute();
   void stats(char *);
   void stats_header(char *);
-  double (DiagMoment::*x_dist)(double, double);
-  double (DiagMoment::*y_dist)(double, double);
-  double (DiagMoment::*z_dist)(double, double);
+  double (DiagGrainsize::*x_dist)(double, double);
+  double (DiagGrainsize::*y_dist)(double, double);
+  double (DiagGrainsize::*z_dist)(double, double);
 
   double dist(double, double);
   double min_dist(double, double, double);
@@ -44,11 +49,12 @@ class DiagMoment : public Diag {
   double min_dist_z(double, double);
   void merge_grain(int,double,double,double,double,int,double*);
   void merge_partial_moments(int,double*);
+  void create_hdf_file(char*);
+  void find_nspins();
   
  protected:
   std::map<int, Grain> grains;
   std::map<int, Grain>::iterator grain_iter;
-  FILE *fpdump;
   
  private:
   int latticeflag;
@@ -59,9 +65,22 @@ class DiagMoment : public Diag {
   double **xyz; // site coordinates
   tagint *idsite; // global site id
 
+  int nspins;
   int nlocal, nghost;
   int n_nearest;
   int* nearest_neighs;
+
+#ifdef SPPARKS_HDF5
+  hsize_t dims[2];
+  hsize_t chunk_dims[2];
+  H5::H5File output_file;
+  H5::DataSpace *dataspace;
+  H5::DSetCreatPropList prop;
+  H5::DataSet *dataset;
+  H5::DataSpace *filespace;
+  H5::DataSpace *memspace;
+  herr_t h5_status;
+#endif
   
 };
 
