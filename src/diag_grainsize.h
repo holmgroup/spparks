@@ -21,6 +21,7 @@ DiagStyle(grainsize,DiagGrainsize)
 #include "stdio.h"
 #include "diag.h"
 #include <map>
+#include <vector>
 #include "grain.h"
 
 #ifdef SPPARKS_HDF5
@@ -51,6 +52,7 @@ class DiagGrainsize : public Diag {
   void merge_partial_moments(int,double*);
   void create_hdf_file(char*);
   void find_nspins();
+  void save_time();
   
  protected:
   std::map<int, Grain> grains;
@@ -69,7 +71,8 @@ class DiagGrainsize : public Diag {
   int nlocal, nghost;
   int n_nearest;
   int* nearest_neighs;
-
+  std::vector<double> time;
+  
 #ifdef SPPARKS_HDF5
   hsize_t dims[2];
   hsize_t chunk_dims[2];

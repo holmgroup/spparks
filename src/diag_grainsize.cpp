@@ -32,7 +32,7 @@ using namespace H5;
 enum{NONE,LINE_2N,SQ_4N,SQ_8N,TRI,SC_6N,SC_26N,FCC,BCC,DIAMOND,
        FCC_OCTA_TETRA,RANDOM_1D,RANDOM_2D,RANDOM_3D};
 
-#define STATS_PATH "stats"
+#define DATA_PATH "grainsize"
 
 /* ---------------------------------------------------------------------- */
 
@@ -60,11 +60,21 @@ DiagGrainsize::DiagGrainsize(SPPARKS *spk, int narg, char **arg) :
 DiagGrainsize::~DiagGrainsize() {
   grains.clear();
   if (me == 0) {
+    save_time(); // save std::vector for time
     prop.close();
     delete dataspace;
     delete dataset;
     output_file.close();
   }
+}
+
+
+void DiagGrainsize::save_time() {
+  hsize_t time_dim = time.size();
+  DataSpace timespace = DataSpace(1, &time_dim);
+  DataSet timedata = output_file.createDataSet("time", PredType::NATIVE_DOUBLE, timespace);
+  timedata.write(time.data(), PredType::NATIVE_DOUBLE);
+  return;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -155,7 +165,7 @@ void DiagGrainsize::create_hdf_file(char* filename) {
     chunk_dims[0] = 2; chunk_dims[1] = 5;
     prop.setChunk(2, chunk_dims);
 
-    dataset = new DataSet(output_file.createDataSet(STATS_PATH, PredType::STD_I32BE,
+    dataset = new DataSet(output_file.createDataSet(DATA_PATH, PredType::NATIVE_INT,
 						    *dataspace, prop));
 #endif
   }
@@ -447,6 +457,7 @@ void DiagGrainsize::compute()
 
   // root process saves to file
   if (me == 0) {
+    time.push_back(applattice->time); // save time for later
     // fill the data buffer with grain sizes
     int *grainsize_buf = new int[nspins+1];
     for (int i = 0; i < nspins+1; i++)
@@ -458,7 +469,6 @@ void DiagGrainsize::compute()
 
     // grow the hdf5 dataset
     hsize_t size[2];
-    std::cout << "dims: " << dims[0] << "x" << dims[1] << std::endl;
     dims[0] = dims[0] + 1;
     size[0] = dims[0];
     size[1] = dims[1];
