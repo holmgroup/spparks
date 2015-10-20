@@ -7,12 +7,12 @@ SHELL = /bin/sh
 # specify flags and libraries needed for your compiler
 
 CC =		mpicc
-CCFLAGS =	-O2 -std=c++11
+CCFLAGS =	-O2 -std=c++0x
 DEPFLAGS =	-M
 SHFLAGS =	-fPIC
 
 LINK =		mpic++
-LINKFLAGS =	-O2 -std=c++11
+LINKFLAGS =	-O2 -std=c++0x
 LIB =	  	-lstdc++
 SIZE =		size
 
@@ -26,7 +26,7 @@ SHLIBFLAGS =	-shared
 
 # SPPARKS ifdef options, see doc/Section_start.html
 
-SPK_INC =	-DSPPARKS_GZIP -DSPPARKS_JPEG -DSPPARKS_HDF5
+SPK_INC =	-DSPPARKS_GZIP -DSPPARKS_JPEG -DSPPARKS_HDF5 -DSPPARKS_EIGEN
 
 # MPI library, can be src/STUBS dummy lib
 # INC = path for mpi.h, MPI compiler settings
@@ -49,7 +49,7 @@ JPG_LIB =	-ljpeg
 # HDF5 library, only needed if -DSPPARKS_HDF5 is set in SPPARKS_INC
 
 HDF_INC =   # /usr/include/hdf5_hl.h
-HDF_PATH =  /usr/lib/libhdf5_hl.so /usr/lib/libhdf5_cpp.so
+HDF_PATH =  /usr/lib64/libhdf5_hl.so /usr/lib64/libhdf5_cpp.so
 HDF_LIB =   -lhdf5
 
 # ---------------------------------------------------------------------

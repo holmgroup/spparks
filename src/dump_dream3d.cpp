@@ -328,7 +328,7 @@ void DumpDream3d::write_dream3d() {
   
     // assuming SPPARKS and DREAM3D both use row-major indexing, GrainIds are indexed by global_id
   if (me == 0) {
-    int rank = 3;
+    const int rank = 3;
     hsize_t shape[rank] = {extents[0], extents[1], extents[2]};
     h5_status = H5LTmake_dataset_int(output_file, grain_ids_path.c_str(), rank, shape, data);
   }

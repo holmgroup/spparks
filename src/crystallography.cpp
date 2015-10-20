@@ -22,6 +22,7 @@
 #include "signal.h"
 
 #include <unordered_map>
+#include <vector>
 
 using namespace SPPARKS_NS;
 
