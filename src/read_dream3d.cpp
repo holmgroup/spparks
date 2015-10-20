@@ -132,8 +132,8 @@ void ReadDream3d::command(int narg, char **arg)
 
     major_version = file_version[0];
 
-    if (!(major_version == '4' || major_version == '6'))
-      error->all(FLERR,"Only DREAM3D data format versions 4 and 6 supported.");
+    if (!(major_version == '4' || major_version == '6' || major_version == '7'))
+      error->all(FLERR,"Only DREAM3D data format versions 4, 6, and 7 supported.");
 #else
     error->all(FLERR,"Compile with HDF5 and set SPPARKS_HDF5 to read dream3d files.");
 #endif
@@ -196,6 +196,16 @@ void ReadDream3d::set_dataset_paths() {
     grain_ids_path = dataset_root + "CellData/FeatureIds";
     quaternions_path = dataset_root + "CellFeatureData/AvgQuats";
   }
+  else if (major_version == '7') {
+    std::string dataset_root = "/DataContainers/" + dataset_name + "/";
+    dimensions_path = dataset_root + "/_SIMPL_GEOMETRY/DIMENSIONS";
+    grain_ids_path = dataset_root + "CellData/FeatureIds";
+    quaternions_path = dataset_root + "CellFeatureData/AvgQuats";
+  }
+  // TODO: check that dataset exists
+  hbool_t check_object_valid = false;
+  if (!(H5LTpath_valid(file_id, grain_ids_path.c_str(), check_object_valid)))
+    error->all(FLERR,"DREAM3D dataset path invalid");    
 }
 
 void ReadDream3d::get_dimensions() {
