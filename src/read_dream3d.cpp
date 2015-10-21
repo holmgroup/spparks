@@ -31,6 +31,7 @@
 
 #include <map>
 #include <string>
+#include <iostream>
 
 using namespace SPPARKS_NS;
 

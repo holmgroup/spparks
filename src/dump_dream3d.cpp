@@ -28,6 +28,7 @@
 #include "math_const.h"
 #include "error.h"
 #include "memory.h"
+#include <iostream>
 
 using namespace SPPARKS_NS;
 using namespace MathConst;
