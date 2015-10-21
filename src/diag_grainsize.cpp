@@ -24,6 +24,7 @@
 #include "error.h"
 #include "grain.h"
 #include "math.h"
+#include <iostream>
 
 using namespace SPPARKS_NS;
 using namespace H5;
