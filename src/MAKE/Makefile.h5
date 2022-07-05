@@ -6,12 +6,12 @@ SHELL = /bin/sh
 # compiler/linker settings
 # specify flags and libraries needed for your compiler
 
-CC =		mpic++
-CCFLAGS =	-O2 -std=c++11
+CC =		g++
+CCFLAGS =	-O2 -std=c++11 -I/usr/include/hdf5/serial/ -I/usr/include/eigen3/ -I/usr/include/mpi
 DEPFLAGS =	-M
 SHFLAGS =	-fPIC
 
-LINK =		mpic++
+LINK =		g++
 LINKFLAGS =	-O2 -std=c++11
 LIB =	  	-lstdc++
 SIZE =		size
@@ -26,16 +26,16 @@ SHLIBFLAGS =	-shared
 
 # SPPARKS ifdef options, see doc/Section_start.html
 
-SPK_INC =	-DSPPARKS_GZIP -DSPPARKS_JPEG -DSPPARKS_HDF5
+SPK_INC =	-DSPPARKS_GZIP -DSPPARKS_JPEG -DSPPARKS_HDF5 -DSPPARKS_EIGEN
 
 # MPI library, can be src/STUBS dummy lib
 # INC = path for mpi.h, MPI compiler settings
 # PATH = path for MPI library
 # LIB = name of MPI library
 
-MPI_INC = #      -DMPICH_SKIP_MPICXX
+MPI_INC = -I../STUBS #      -DMPICH_SKIP_MPICXX
 MPI_PATH = 
-MPI_LIB = #	-lmpich -lmpl -lpthread
+MPI_LIB = ../STUBS/libmpi.a #	-lmpich -lmpl -lpthread
 
 # JPEG library, only needed if -DLAMMPS_JPEG listed with LMP_INC
 # INC = path for jpeglib.h
@@ -48,8 +48,8 @@ JPG_LIB =	-ljpeg
 
 # HDF5 library, only needed if -DSPPARKS_HDF5 is set in SPPARKS_INC
 
-HDF_INC =   # /usr/include/hdf5_hl.h
-HDF_PATH =  /usr/lib/libhdf5_hl.so /usr/lib/libhdf5_cpp.so
+HDF_INC =   /usr/include/hdf5/serial/hdf5.h /usr/include/hdf5/serial/hdf5_hl.h /usr/include/hdf5/serial/H5Cpp.h
+HDF_PATH =   /usr/lib/x86_64-linux-gnu/libhdf5_serial.so /usr/lib/x86_64-linux-gnu/libhdf5_serial_hl.so
 HDF_LIB =   -lhdf5 -lhdf5_hl -lhdf5_cpp
 
 # ---------------------------------------------------------------------
