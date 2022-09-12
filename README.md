@@ -2,7 +2,7 @@
 This is a fork of the SPPARKS (11 Nov 2009) software package.
 The official SPPARKS repository is located here: [https://github.com/spparks/spparks](https://github.com/spparks/spparks).
 
-This project implements the spparks portion of the *candidate grain* simulations as seen in DeCost & Holm [[1]](#1).
+This project implements the SPPARKS portion of the *candidate grain* simulations as seen in DeCost & Holm [[1]](#1). The Python portion, which assigns grain types and provides some tools for post-processing simulation results, is in a separate repository: https://github.com/holmgroup/spparks-meso.
 
 
 
@@ -11,10 +11,12 @@ This project implements the spparks portion of the *candidate grain* simulations
 --------------------------------------------------------------------------
 
 #  Installation 
+## Docker
 [Docker](https://www.docker.com/) is the preferred method of installation. The image can be built by simply running:
 ```bash
 $ docker build -t spparks-candidate-grains .
 ```
+## Singularity
 Many HPC systems use [Singularity](https://docs.sylabs.io/guides/3.5/user-guide/introduction.html) instead of Docker. The most straightforward way to build the singularity image is to build and export the image from a machine that has Docker, and then use singularity to convert it to the correct format. After building the image with the above command, export the container to a file:
 ```bash
 $ docker save -o spparks-candidate-grains.tar spparks-candidate-grains:latest
@@ -27,35 +29,28 @@ $ singularity build spparks-candidate-grains.sif docker-archive:./spparks-candid
 
 # Running a premade input deck.
 
-SPPARKS provides several sample input decks. The simple ising simulation runs instantaneously and can be used to verify the installation.
-First, copy the input file to your current directory.
-```bash
-$ cp spparks/examples/ising/in.ising .
-```
+SPPARKS provides several sample input decks in the `examples/` folder in this repository. The simple ising simulation runs very quickly and can be used to verify the installation works.
 ## Run with Docker
-Next, make a directory to store the outputs of the simulation. Note that it will need to allow the docker container, which may have a different UID than you, to write files. The simplest way to do this is by allowing all permissions.
-```bash
-$ mkdir results && chmod 777 results
-```
-Finally, the container can be run to execute the simulation.
+
 ```bash
 $ docker run --rm \
-         -v $(pwd)/in.ising:/home/spparks/in.ising:ro \
-         -v $(pwd)/results:/home/spparks/results:rw \
+         -v $(pwd)/examples/ising/in.ising:/mnt/in.ising:ro \
          spparks-candidate-grains \
-         bash -c "spparks -in in.ising > results/out.ising"
+         spparks -in /mnt/in.ising > out.ising
 ```
   Summary of `docker run` arguments:
   - `--rm`: removes container after it executes, preventing clutter
-  - `-v $(pwd)/in.ising:/home/spparks/in.ising:ro`: mounts the input file `in.ising` into the container as a read-only file.
-  - `-v $(pwd)/results:/home/spparks/results:rw`: mounts the output directory `results` to the container so that the output file persists on the host machine after the container exits. Note that this directory on the host machine must allow the container to write files, otherwise it will throw a permission denied error. This is why the folder was created with chmod 777 permissions.
+  - `-v $(pwd)/examples/ising/in.ising:/mnt/in.ising:ro`  mounts the input file `in.ising` into the container as a read-only file. Note that the mount needs an absolute path.
   - `spparks-candidate-grains`: name of the docker image to run.
-  - `bash -c "spparks -in in.ising > results/out.ising"`: Run spparks with `in.ising` and save the results to `results/out.ising`.
+  - `spparks -in in.ising > results/out.ising`: Run spparks with the `in.ising` input deck. In this example, SPPARKS prints the results to the terminal. The results are saved to a file by redirecting the terminal output to `out.ising`.
+
+Note: more advanced input decks will produce additional output files that cannot be handled through terminal redirection. In this case, you can either mount the output folder to the container (`-v path/on/host:path/in/container:rw`) or use [docker cp](https://docs.docker.com/engine/reference/commandline/cp/) to copy the outputs back to the host.
 
 ## Run with Singularity
 Running with Singularity is very straightforward:
 ```bash
-$ singularity run spparks-candidate-grains.sif bash -c "spparks -in in.ising > out.ising"
+$ singularity run spparks-candidate-grains.sif spparks -in \
+               examples/ising/in.ising > out.ising
 ```
 Note that Singularity bind mounts `/home/$USER`, `/tmp`, and `$PWD` into the container at runtime, so no explicit mount commands are needed, unlike with Docker. After the container finishes executing, `out.ising` will be in the current directory.
 
